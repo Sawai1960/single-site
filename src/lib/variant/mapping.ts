@@ -121,10 +121,14 @@ export function genomeToC(t: Transcript, g1: number): string | undefined {
   const ge = Math.max(...t.blocks.map((b) => b[1] + b[2]));
   if (!best) return undefined;
   if (g0 < gs || g0 >= ge) {
+    // Mirror cPosToGenome: extend from the first/last aligned transcript base, not the transcript ends.
     const dist = g0 < gs ? gs - g0 : g0 - ge + 1;
     if (dist > MAX_FLANK) return undefined;
     const upstream = (g0 < gs) === (t.strand === "+");
-    return `c.${txToC(t, upstream ? 1 - dist : t.len + dist)}`;
+    const firstAligned = t.blocks[0][0] + 1;
+    const last = t.blocks[t.blocks.length - 1];
+    const lastAligned = last[0] + last[2];
+    return `c.${txToC(t, upstream ? firstAligned - dist : lastAligned + dist)}`;
   }
   const sign = best.offset > 0 ? "+" : "";
   return `c.${txToC(t, best.tx)}${sign}${best.offset}`;

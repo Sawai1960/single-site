@@ -516,6 +516,16 @@ export async function convertOne(raw: string): Promise<ConversionResult> {
           : await convertProtein(q, resolved.transcripts);
       candidates = r.candidates;
       errors = r.errors;
+      const perTranscript = new Map<string, number>();
+      for (const c of candidates) perTranscript.set(c.transcript, (perTranscript.get(c.transcript) ?? 0) + 1);
+      for (const c of candidates) {
+        const n = perTranscript.get(c.transcript)!;
+        if (n > 1) {
+          c.warnings.push(
+            `${c.transcript} はゲノム上の ${n} か所にアライメントされています（多コピー遺伝子・偽常染色体領域など）。すべての候補を確認してください`,
+          );
+        }
+      }
       if (q.kind === "protein") {
         notes.push(
           "古くから知られる変異では、シグナル配列を除いた成熟型タンパク質の番号で表記されていることがあります。その場合はシグナル配列を含む番号に直してから入力してください",

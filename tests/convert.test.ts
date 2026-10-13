@@ -106,6 +106,12 @@ describe("照合と注意表示", () => {
     expect(c.warnings.join()).toContain("特記事項");
   });
 
+  it("偽常染色体領域の SHOX は chrX と chrY の両方を返し注意を出す", async () => {
+    const r = await convertOne("NM_000451.4:c.100");
+    expect(r.candidates.map((c) => c.chrom).sort()).toEqual(["chrX", "chrY"]);
+    for (const c of r.candidates) expect(c.warnings.join()).toContain("2 か所にアライメント");
+  });
+
   it("相同領域のある遺伝子（PMS2）に注意を出す", async () => {
     const r = await convertOne("PMS2:c.137G>T");
     expect(r.candidates[0].warnings.join()).toContain("相同領域");
