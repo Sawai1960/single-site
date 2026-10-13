@@ -102,6 +102,16 @@ describe("検証で見つかり修正した不具合の再発防止", () => {
     expect(m.lo).toBe(38269129);
     expect(m.hi - m.lo + 1).toBe(21);
   });
+
+  it("72 kb 上流の別プロモーター付近の c.-N も計算する（DMD NM_004006.2:c.-72567, ClinVar 137114）", () => {
+    const m = map("NM_004006.2:c.-72567T>C");
+    expect([m.lo, m.hi]).toEqual([33283879, 33283879]);
+    expect(genomeToC(m.t, 33283879)).toBe("c.-72567");
+  });
+
+  it("100 kb を超える上流はエラーにする（入力ミス対策）", () => {
+    expect(() => map("NM_004006.2:c.-150000T>C")).toThrow("離れすぎ");
+  });
 });
 
 describe("形式1 の逆変換: hg38 位置 → c. 表記", () => {

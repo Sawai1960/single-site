@@ -2,8 +2,11 @@ import type { CPos, Transcript } from "./types";
 
 export class MappingError extends Error {}
 
-/** HGVS allows c.-N / c.*N beyond the transcript ends; they continue along the genome. */
-const MAX_FLANK = 50000;
+/**
+ * HGVS allows c.-N / c.*N beyond the transcript ends; they continue along the genome.
+ * 100 kb covers alternative promoters far upstream (e.g. DMD Dp427c/p, ~72 kb before Dp427m).
+ */
+export const MAX_FLANK = 100000;
 
 /**
  * c. position (without intronic offset) → 1-based transcript coordinate.
