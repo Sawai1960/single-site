@@ -77,6 +77,11 @@ ClinVar の `variant_summary.txt.gz`（GRCh38）から、NM_ の c. 表記と hg
 
 不一致 18 件はすべて原因を調べました。本ツールが警告なしに誤った位置を出したケースはありませんでした。大半は、hg38 の参照配列の欠損（SHANK3、MROH8）か ClinVar 側の表記誤りです。いずれも NCBI の転写産物配列と直接比べて確認しました。検証で見つかった不具合 4 件は修正済みで、回帰テストに含めています。詳しくは [`validation/ANALYSIS.md`](validation/ANALYSIS.md) を参照してください。
 
+旧バージョンの NM 番号だけを集めた 3 つ目のサンプル（4,827 件、[`report-historical.md`](validation/report-historical.md)）でも検証しました。
+
+- 本ツールのデータにある旧版では、3,687 / 3,781 件（97.51%）が一致しました。不一致 94 件に座標計算の誤りはありませんでした。79 件は GAGE・GSTT2 など、ほぼ同じ配列のコピーを持つ遺伝子です。UCSC が NCBI とは別のコピーに対応付けています。
+- データに無い版を別の版で代替した場合は、514 / 704 件（73.0%）しか一致しません。本ツールは代替時に必ず警告を出します。**この警告が出たら、結果を正しいものとして扱わないでください。**
+
 ClinVar のサンプルは、次のコマンドで最新版から取り直せます（約 450 MB をストリーミングで読み込みます。保存はしません）。
 
 ```bash
@@ -88,6 +93,11 @@ node validation/fetch-clinvar.mjs --seed 777 \
   --exclude-genes-from validation/clinvar-sample.tsv --out validation/clinvar-sample-heldout.tsv
 npx tsx validation/validate-clinvar.ts \
   --sample validation/clinvar-sample-heldout.tsv --report validation/report-heldout.md
+
+# 旧バージョンの NM 番号だけを抽出・検証
+node validation/fetch-clinvar.mjs --seed 4242 --historical-only --out validation/clinvar-sample-historical.tsv
+npx tsx validation/validate-clinvar.ts \
+  --sample validation/clinvar-sample-historical.tsv --report validation/report-historical.md
 ```
 
 ### 2. 回帰テスト（`npm test`）
