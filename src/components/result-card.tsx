@@ -29,8 +29,8 @@ function VersionTable({ rows }: { rows: VersionRow[] }) {
     <div>
       <div className="mb-1 text-xs font-medium text-muted-foreground">バージョン別の hg38 位置</div>
       <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/60 text-xs text-muted-foreground">
+        <table className="w-full min-w-[34rem] text-sm">
+          <thead className="bg-muted/60 text-xs whitespace-nowrap text-muted-foreground">
             <tr>
               <th className="px-3 py-1.5 text-left font-medium">バージョン</th>
               <th className="px-3 py-1.5 text-left font-medium">hg38 位置</th>
@@ -69,10 +69,10 @@ function VersionTable({ rows }: { rows: VersionRow[] }) {
                     <div key={`${l.chrom}:${l.start}`}>{ninePad(l.start)}</div>
                   ))}
                 </td>
-                <td className="px-3 py-1.5 text-xs">
+                <td className="px-3 py-1.5 text-xs whitespace-nowrap">
                   {r.refOk === undefined ? "—" : r.refOk ? "一致" : <span className="text-destructive">不一致</span>}
                 </td>
-                <td className="px-3 py-1.5 text-xs">
+                <td className="px-3 py-1.5 text-xs whitespace-nowrap">
                   {r.error ? (
                     <span className="text-muted-foreground">計算できません: {r.error}</span>
                   ) : r.same ? (
