@@ -132,6 +132,17 @@ describe("NCBI Variation Services", () => {
     expect(c.forward).toMatchObject({ status: "mismatch", detail: expect.stringContaining("chr22:23,961,032") });
   });
 
+  it("参照塩基が NCBI の配列と違うときは、1 塩基置換で位置だけを照合する（反復内でも位置がぶれない）", async () => {
+    const [c] = await verifyItems("ncbi", await itemsFor("NM_005211.3:c.2467C>T"));
+    expect(c.forward).toMatchObject({ status: "match", detail: "NCBI: chr5:150,056,113（入力の参照塩基が NCBI の転写産物配列と一致しません。位置のみ照合）" });
+  });
+
+  it("形式1 の位置だけの照合も 1 塩基置換で行う", async () => {
+    const items = await itemsFor("hg38, chr4:55113391");
+    const [c] = await verifyItems("ncbi", items.filter((i) => i.transcript === "NM_002253.4"));
+    expect(c.forward).toMatchObject({ status: "match", detail: "NCBI: chr4:55,113,391" });
+  });
+
   it("イントロン内の変異は NCBI では確認不可", async () => {
     const [c] = await verifyItems("ncbi", await itemsFor("NM_000546.6:c.375+1G>A"));
     expect(c.forward).toMatchObject({ status: "unavailable", detail: expect.stringContaining("イントロン") });
@@ -158,6 +169,12 @@ describe("Ensembl VEP（RefSeq）", () => {
   it("重複（dup）は Ensembl の挿入表記と配列で等価なら一致", async () => {
     const [c] = await verifyItems("ensembl", await itemsFor("NM_000059.4:c.5946dup"));
     expect(c.forward).toMatchObject({ status: "match", detail: expect.stringContaining("挿入") });
+  });
+
+  it("形式1 の位置だけの照合は 4 通りの置換を送り、残った結果で照合する", async () => {
+    const items = await itemsFor("hg38, chr4:55113391");
+    const [c] = await verifyItems("ensembl", items.filter((i) => i.transcript === "NM_002253.4"));
+    expect(c.forward).toMatchObject({ status: "match", detail: "Ensembl: chr4:55,113,391" });
   });
 
   it("Ensembl に無い旧バージョンは確認不可", async () => {

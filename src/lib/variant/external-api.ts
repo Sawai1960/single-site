@@ -135,7 +135,8 @@ export async function ensemblVepHgvs(notations: string[]): Promise<Map<string, V
     const batch = (list: string[]) =>
       ensemblPost<Row[]>("/vep/human/hgvs?refseq=1", { hgvs_notations: list }).then((rows) => {
         for (const n of list) {
-          const row = rows.find((r) => r.input === n);
+          const mine = rows.filter((r) => r.input === n);
+          const row = mine.find((r) => /^(\d+|X|Y|MT)$/.test(r.seq_region_name)) ?? mine[0];
           const v = row ?? new ExternalError("Ensembl が結果を返しませんでした");
           cache.set(`vephgvs:${n}`, Promise.resolve(v));
         }

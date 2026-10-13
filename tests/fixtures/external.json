@@ -2043,5 +2043,571 @@
     ]
    ]
   ]
+ },
+ "ncbiHgvs:[\"NM_004333.6:c.1799A>C\"]": {
+  "error": "Error while processing 'NM_004333.6:c.1799A>C': The submitted reference allele (A) does not agree with the actual reference sequence (T)."
+ },
+ "ncbiHgvs:[\"NM_004333.6:c.1799T>A\"]": {
+  "value": [
+   {
+    "seq_id": "NM_004333.6",
+    "position": 2024,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   }
+  ]
+ },
+ "ncbiEq:[\"NM_004333.6:2024:T:A\"]": {
+  "value": [
+   {
+    "seq_id": "NM_004333.6",
+    "position": 2024,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NG_007873.3",
+    "position": 176428,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_004333.4",
+    "position": 1859,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001354609.2",
+    "position": 2024,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001374258.1",
+    "position": 2144,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001378467.1",
+    "position": 2033,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001378470.1",
+    "position": 1922,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001378471.1",
+    "position": 1913,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001378468.1",
+    "position": 2024,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001378475.1",
+    "position": 1760,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001378472.1",
+    "position": 1743,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001374244.1",
+    "position": 2144,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001378469.1",
+    "position": 1958,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001378473.1",
+    "position": 1743,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NC_000007.14",
+    "position": 140753335,
+    "deleted_sequence": "A",
+    "inserted_sequence": "T"
+   },
+   {
+    "seq_id": "NC_000007.13",
+    "position": 140453135,
+    "deleted_sequence": "A",
+    "inserted_sequence": "T"
+   },
+   {
+    "seq_id": "NR_148928.2",
+    "position": 2897,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "XM_017012559.1",
+    "position": 1926,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "XM_017012559.2",
+    "position": 2144,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001378474.1",
+    "position": 2024,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "XR_001744857.1",
+    "position": 1926,
+    "deleted_sequence": "T",
+    "inserted_sequence": "A"
+   }
+  ]
+ },
+ "seq:chr5:150056113:150056113": "C",
+ "ncbiHgvs:[\"NM_005211.3:c.2467C>T\"]": {
+  "error": "Error while processing 'NM_005211.3:c.2467C>T': The submitted reference allele (C) does not agree with the actual reference sequence (G)."
+ },
+ "ncbiHgvs:[\"NM_005211.3:c.2467A>C\"]": {
+  "error": "Error while processing 'NM_005211.3:c.2467A>C': The submitted reference allele (A) does not agree with the actual reference sequence (G)."
+ },
+ "ncbiHgvs:[\"NM_005211.3:c.2467G>A\"]": {
+  "value": [
+   {
+    "seq_id": "NM_005211.3",
+    "position": 2758,
+    "deleted_sequence": "G",
+    "inserted_sequence": "A"
+   }
+  ]
+ },
+ "ncbiEq:[\"NM_005211.3:2758:G:A\"]": {
+  "value": [
+   {
+    "seq_id": "NM_005211.3",
+    "position": 2758,
+    "deleted_sequence": "G",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_005211.4",
+    "position": 2751,
+    "deleted_sequence": "G",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NG_012303.2",
+    "position": 62259,
+    "deleted_sequence": "G",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001288705.3",
+    "position": 2593,
+    "deleted_sequence": "G",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001349736.2",
+    "position": 2837,
+    "deleted_sequence": "G",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NR_109969.2",
+    "position": 2430,
+    "deleted_sequence": "G",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001375320.1",
+    "position": 2856,
+    "deleted_sequence": "G",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NM_001375321.1",
+    "position": 2522,
+    "deleted_sequence": "G",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NR_164679.1",
+    "position": 2359,
+    "deleted_sequence": "G",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NC_000005.10",
+    "position": 150056112,
+    "deleted_sequence": "C",
+    "inserted_sequence": "T"
+   },
+   {
+    "seq_id": "NC_000005.9",
+    "position": 149435675,
+    "deleted_sequence": "C",
+    "inserted_sequence": "T"
+   }
+  ]
+ },
+ "ncbiEq:[\"NC_000005.10:150056112:C:A\"]": {
+  "value": [
+   {
+    "seq_id": "NC_000005.10",
+    "position": 150056112,
+    "deleted_sequence": "C",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NC_000005.9",
+    "position": 149435675,
+    "deleted_sequence": "C",
+    "inserted_sequence": "A"
+   },
+   {
+    "seq_id": "NG_012303.2",
+    "position": 62259,
+    "deleted_sequence": "G",
+    "inserted_sequence": "T"
+   },
+   {
+    "seq_id": "NM_005211.4",
+    "position": 2751,
+    "deleted_sequence": "G",
+    "inserted_sequence": "T"
+   },
+   {
+    "seq_id": "NM_001288705.3",
+    "position": 2593,
+    "deleted_sequence": "G",
+    "inserted_sequence": "T"
+   },
+   {
+    "seq_id": "NM_001349736.2",
+    "position": 2837,
+    "deleted_sequence": "G",
+    "inserted_sequence": "T"
+   },
+   {
+    "seq_id": "NR_109969.2",
+    "position": 2430,
+    "deleted_sequence": "G",
+    "inserted_sequence": "T"
+   },
+   {
+    "seq_id": "NM_001375320.1",
+    "position": 2856,
+    "deleted_sequence": "G",
+    "inserted_sequence": "T"
+   },
+   {
+    "seq_id": "NM_001375321.1",
+    "position": 2522,
+    "deleted_sequence": "G",
+    "inserted_sequence": "T"
+   },
+   {
+    "seq_id": "NR_164679.1",
+    "position": 2359,
+    "deleted_sequence": "G",
+    "inserted_sequence": "T"
+   }
+  ]
+ },
+ "ncbiHgvs:[\"NM_002253.4:c.889A>C\"]": {
+  "error": "Error while processing 'NM_002253.4:c.889A>C': The submitted reference allele (A) does not agree with the actual reference sequence (G)."
+ },
+ "vepHgvs:[[\"NM_002253.4:c.889A>C\",\"NM_002253.4:c.889C>A\",\"NM_002253.4:c.889G>A\",\"NM_002253.4:c.889T>A\"]]": {
+  "map": [
+   [
+    "NM_002253.4:c.889A>C",
+    {
+     "error": "Ensembl が結果を返しませんでした"
+    }
+   ],
+   [
+    "NM_002253.4:c.889C>A",
+    {
+     "error": "Ensembl が結果を返しませんでした"
+    }
+   ],
+   [
+    "NM_002253.4:c.889G>A",
+    {
+     "allele_string": "G/A",
+     "most_severe_consequence": "missense_variant",
+     "id": "NM_002253.4:c.889G>A",
+     "strand": -1,
+     "input": "NM_002253.4:c.889G>A",
+     "transcript_consequences": [
+      {
+       "variant_allele": "A",
+       "polyphen_prediction": "probably_damaging",
+       "given_ref": "G",
+       "used_ref": "G",
+       "cdna_start": 1191,
+       "consequence_terms": [
+        "missense_variant"
+       ],
+       "impact": "MODERATE",
+       "cdna_end": 1191,
+       "biotype": "protein_coding",
+       "protein_end": 297,
+       "cds_start": 889,
+       "sift_score": 0.06,
+       "gene_id": "3791",
+       "codons": "Gta/Ata",
+       "cds_end": 889,
+       "sift_prediction": "tolerated",
+       "gene_symbol": "KDR",
+       "polyphen_score": 0.999,
+       "transcript_id": "NM_002253.4",
+       "strand": -1,
+       "gene_symbol_source": "EntrezGene",
+       "protein_start": 297,
+       "amino_acids": "V/I"
+      }
+     ],
+     "assembly_name": "GRCh38",
+     "end": 55113391,
+     "colocated_variants": [
+      {
+       "id": "CM074307",
+       "strand": 1,
+       "allele_string": "HGMD_MUTATION",
+       "phenotype_or_disease": 1,
+       "seq_region_name": "4",
+       "end": 55113391,
+       "start": 55113391
+      },
+      {
+       "somatic": 1,
+       "var_synonyms": {
+        "COSMIC": [
+         "COSM1131107"
+        ]
+       },
+       "seq_region_name": "4",
+       "start": 55113391,
+       "end": 55113391,
+       "strand": 1,
+       "id": "COSV55758732",
+       "allele_string": "COSMIC_MUTATION",
+       "phenotype_or_disease": 1
+      },
+      {
+       "pubmed": [
+        23205182,
+        24728327,
+        21791631,
+        28117391,
+        20401335,
+        22404826,
+        18035072,
+        27252648,
+        33246355,
+        21036793,
+        32797194,
+        26001650,
+        32780457,
+        33762959,
+        31405022,
+        27186328,
+        25959001,
+        32326111,
+        32107407,
+        24886133,
+        20389299,
+        22808003,
+        26830973,
+        27175642,
+        32257424,
+        25695485,
+        32555399,
+        22015057,
+        19875757,
+        20019880,
+        19924384,
+        21119072,
+        21257617,
+        21407216,
+        21882181,
+        22129133,
+        22285963,
+        22919317,
+        23111153,
+        23146028,
+        24851136,
+        25182707,
+        25738571,
+        26081139,
+        26093379,
+        26254278,
+        26726843,
+        26981634,
+        27117754,
+        27163696,
+        27175586,
+        28488026,
+        29787601,
+        30111293,
+        30380970,
+        31339592,
+        31432097,
+        31611971,
+        32506171,
+        32997825,
+        35314692,
+        35428537,
+        19520980,
+        22182247,
+        22274884,
+        23102494,
+        24510746,
+        26337470,
+        28218664,
+        29230610,
+        29290970,
+        30401688,
+        32782621,
+        33566031,
+        35893809,
+        19953880,
+        31118800,
+        31293107,
+        32392440,
+        33417661,
+        33916610,
+        35029892,
+        26256109,
+        35075138,
+        31876763,
+        23511629,
+        26935927,
+        33447413,
+        22523086,
+        32751332,
+        33531528,
+        31640191,
+        27681865,
+        33790633,
+        25628948,
+        33238394,
+        31564802,
+        37120792,
+        31508572,
+        26578958,
+        34108518,
+        32201506,
+        36540979,
+        32585893,
+        23158831,
+        27930691,
+        37288254,
+        23833308,
+        25128838,
+        19908237,
+        30072576,
+        28665417,
+        20571871,
+        3725207
+       ],
+       "clin_sig": [
+        "not_provided",
+        "benign"
+       ],
+       "var_synonyms": {
+        "UniProt": [
+         "VAR_022071"
+        ],
+        "PhenCode": [
+         "KDR:NM_002253.2:c.889G>A"
+        ],
+        "ClinVar": [
+         "RCV003975078",
+         "RCV000121308",
+         "VCV000134616"
+        ],
+        "PharmGKB": [
+         "PA166156553"
+        ]
+       },
+       "start": 55113391,
+       "end": 55113391,
+       "seq_region_name": "4",
+       "clin_sig_ref_allele": "C",
+       "strand": 1,
+       "id": "rs2305948",
+       "clin_sig_allele": "T:benign;T:not_provided",
+       "frequencies": {
+        "A": {
+         "gnomadg_nfe": 0.09947,
+         "gnomadg": 0.1377,
+         "gnomade_eas": 0.127,
+         "amr": 0.0951,
+         "eas": 0.1667,
+         "gnomade_remaining": 0.1109,
+         "afr": 0.2436,
+         "gnomadg_afr": 0.2392,
+         "gnomade_asj": 0.09943,
+         "gnomade": 0.1015,
+         "af": 0.1526,
+         "gnomade_mid": 0.1011,
+         "gnomadg_asj": 0.09942,
+         "gnomade_afr": 0.2393,
+         "gnomade_nfe": 0.09803,
+         "gnomade_sas": 0.1033,
+         "eur": 0.0944,
+         "sas": 0.1155,
+         "gnomadg_sas": 0.1036,
+         "gnomadg_eas": 0.1426,
+         "gnomadg_remaining": 0.1227,
+         "gnomadg_fin": 0.08651,
+         "gnomadg_amr": 0.09099,
+         "gnomadg_ami": 0.07895,
+         "gnomadg_mid": 0.1361,
+         "gnomade_fin": 0.08913,
+         "gnomade_amr": 0.0631
+        }
+       },
+       "allele_string": "C/A/T",
+       "phenotype_or_disease": 1
+      }
+     ],
+     "start": 55113391,
+     "seq_region_name": "4"
+    }
+   ],
+   [
+    "NM_002253.4:c.889T>A",
+    {
+     "error": "Ensembl が結果を返しませんでした"
+    }
+   ]
+  ]
  }
 }

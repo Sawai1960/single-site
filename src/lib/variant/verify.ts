@@ -12,6 +12,7 @@ import {
   ncbiEquivalents,
   ncbiHgvsContextual,
   type Spdi,
+  type VepHgvsHit,
 } from "./external-api";
 import { formatPos } from "./format";
 import { accBase } from "./refseq";
@@ -86,9 +87,42 @@ function ncbiReason(e: unknown): string {
   return "NCBI に接続できませんでした";
 }
 
+/** A position-only check of one base: deleting a base in a homopolymer is ambiguous, a substitution is not. */
+const isBaseProbe = (f: ForwardCheck) => f.hgvs === `${f.at.hgvs}del` && f.at.from === f.at.to;
+const probeAlt = (ref: string) => (ref === "A" ? "C" : "A");
+
+async function ncbiProbe(chrom: string, nc: string, f: ForwardCheck, why = ""): Promise<CheckOutcome> {
+  let ctx: Spdi[];
+  try {
+    ctx = await ncbiHgvsContextual(`${f.at.hgvs}A>C`);
+  } catch (e) {
+    const actual = (e instanceof Error ? e.message : "").match(/actual reference sequence \(([ACGT])\)/)?.[1];
+    if (!actual) return unavailable(ncbiReason(e));
+    try {
+      ctx = await ncbiHgvsContextual(`${f.at.hgvs}${actual}>${probeAlt(actual)}`);
+    } catch (e2) {
+      return unavailable(ncbiReason(e2));
+    }
+  }
+  let eq: Spdi[];
+  try {
+    eq = ctx.length ? await ncbiEquivalents(spdiText(ctx[0])) : [];
+  } catch (e) {
+    return unavailable(ncbiReason(e));
+  }
+  const g = eq.find((s) => s.seq_id === nc);
+  if (!g) return unavailable(`NCBI に ${f.hgvs.split(":")[0]} の hg38 上の対応位置がありません`);
+  const pos = g.position + 1;
+  const suffix = why ? `（${why}。位置のみ照合）` : "";
+  return pos === f.at.from
+    ? match(`NCBI: ${chrom}:${formatPos(pos)}${suffix}`)
+    : mismatch(`NCBI: ${chrom}:${formatPos(pos)}／本ツール: ${chrom}:${formatPos(f.at.from)}${suffix}`);
+}
+
 async function ncbiForwardOne(chrom: string, f: ForwardCheck): Promise<CheckOutcome> {
   const nc = chromToNC(chrom);
   if (!nc) return unavailable("この染色体は照合できません");
+  if (isBaseProbe(f)) return ncbiProbe(chrom, nc, f);
   let edit = f.edit;
   let suffix = "";
   let ctx: Spdi[];
@@ -97,6 +131,7 @@ async function ncbiForwardOne(chrom: string, f: ForwardCheck): Promise<CheckOutc
   } catch (e) {
     const reason = ncbiReason(e);
     if (!reason.startsWith("入力の参照塩基")) return unavailable(reason);
+    if (f.at.from === f.at.to) return ncbiProbe(chrom, nc, f, reason);
     try {
       ctx = await ncbiHgvsContextual(`${f.at.hgvs}del`);
     } catch (e2) {
@@ -193,8 +228,49 @@ function vepToEdit(h: { start: number; end: number; allele_string: string; stran
   return { from: h.start, to: h.end, alt: alt === "-" ? "" : alt };
 }
 
+const PRIMARY = /^(\d+|X|Y|MT)$/;
+// VEP silently drops notations whose reference base is wrong, so send all four and keep the survivor.
+const ensemblProbes = (f: ForwardCheck) => [..."ACGT"].map((b) => `${f.at.hgvs}${b}>${probeAlt(b)}`);
+const ensemblQueries = (f: ForwardCheck) => (isBaseProbe(f) ? ensemblProbes(f) : [f.hgvs]);
+
+function ensemblForwardOne(item: VerifyItem, f: ForwardCheck, fwd: Map<string, VepHgvsHit | ExternalError>): Promise<CheckOutcome> | CheckOutcome {
+  const hits = ensemblQueries(f)
+    .map((q) => fwd.get(q))
+    .filter((h): h is VepHgvsHit => Boolean(h) && !(h instanceof Error));
+  if (!hits.length) {
+    const err = ensemblQueries(f).map((q) => fwd.get(q)).find((h) => h instanceof Error);
+    return unavailable(
+      err && !/結果を返しませんでした/.test(err.message)
+        ? ensemblReason(err, item.transcript)
+        : `Ensembl が ${item.transcript} の表記を処理できませんでした（Ensembl に無い版か、参照塩基が Ensembl の配列と一致しません）`,
+    );
+  }
+  const hit = hits[0];
+  if (!PRIMARY.test(hit.seq_region_name)) {
+    return unavailable(`Ensembl がパッチ配列（${hit.seq_region_name}）上の位置を返したため照合できません`);
+  }
+  const at = `chr${hit.seq_region_name}`.replace(/^chrMT$/, "chrM");
+  if (at !== item.chrom) {
+    return mismatch(`Ensembl: ${at}:${formatPos(hit.start)}／本ツール: ${describeEdit(item.chrom, f.edit)}`);
+  }
+  if (isBaseProbe(f)) {
+    return hit.start === f.at.from
+      ? match(`Ensembl: ${at}:${formatPos(hit.start)}`)
+      : mismatch(`Ensembl: ${at}:${formatPos(hit.start)}／本ツール: ${at}:${formatPos(f.at.from)}`);
+  }
+  const ext = vepToEdit(hit);
+  if (!ext) return unavailable("Ensembl の結果を解釈できませんでした");
+  return sameVariant(item.chrom, ext, f.edit).then(
+    (same) =>
+      same
+        ? match(`Ensembl: ${describeEdit(item.chrom, ext)}`)
+        : mismatch(`Ensembl: ${describeEdit(item.chrom, ext)}／本ツール: ${describeEdit(item.chrom, f.edit)}`),
+    () => unavailable("参照配列を取得できず、一致を判定できませんでした"),
+  );
+}
+
 async function verifyEnsembl(items: VerifyItem[]): Promise<SourceChecks[]> {
-  const notations = [...new Set(items.flatMap((i) => i.plan.forward.map((f) => f.hgvs)))];
+  const notations = [...new Set(items.flatMap((i) => i.plan.forward.flatMap(ensemblQueries)))];
   const points = new Map<string, string>();
   await Promise.all(
     items.flatMap((i) =>
@@ -220,23 +296,9 @@ async function verifyEnsembl(items: VerifyItem[]): Promise<SourceChecks[]> {
   return Promise.all(
     items.map(async (item) => {
       const forward = await Promise.all(
-        item.plan.forward.map(async (f): Promise<CheckOutcome> => {
-          if (!(fwd instanceof Map)) return unavailable(ensemblReason(fwd, item.transcript));
-          const hit = fwd.get(f.hgvs);
-          if (!hit || hit instanceof Error) return unavailable(ensemblReason(hit, item.transcript));
-          if (`chr${hit.seq_region_name}`.replace(/^chrMT$/, "chrM") !== item.chrom) {
-            return mismatch(`Ensembl: chr${hit.seq_region_name}:${formatPos(hit.start)}／本ツール: ${describeEdit(item.chrom, f.edit)}`);
-          }
-          const ext = vepToEdit(hit);
-          if (!ext) return unavailable("Ensembl の結果を解釈できませんでした");
-          try {
-            return (await sameVariant(item.chrom, ext, f.edit))
-              ? match(`Ensembl: ${describeEdit(item.chrom, ext)}`)
-              : mismatch(`Ensembl: ${describeEdit(item.chrom, ext)}／本ツール: ${describeEdit(item.chrom, f.edit)}`);
-          } catch {
-            return unavailable("参照配列を取得できず、一致を判定できませんでした");
-          }
-        }),
+        item.plan.forward.map((f) =>
+          fwd instanceof Map ? ensemblForwardOne(item, f, fwd) : unavailable(ensemblReason(fwd, item.transcript)),
+        ),
       );
       const reverse = item.plan.points.map((p): CheckOutcome => {
         if (!(rev instanceof Map)) return unavailable(ensemblReason(rev, item.transcript));
