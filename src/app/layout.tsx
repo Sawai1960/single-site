@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "変異位置 → hg38 ゲノム座標 変換ツール",
   description:
-    "NM_ の c. 表記・NP_ の p. 表記・遺伝子名からの表記を hg38 のゲノム位置に変換し、依頼書用の 9 桁表記で出力します。",
+    "NM_ の c. 表記・NP_ の p. 表記・遺伝子名からの表記・ミトコンドリアの m. 表記を hg38 のゲノム位置に変換し、シングルサイト解析の依頼書用の 9 桁表記で出力します。",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
