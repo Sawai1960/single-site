@@ -123,5 +123,366 @@
   "protein": "NP_006006.3",
   "gene": "ARID1A"
  },
- "seq:chr1:26729762:26729762": "T"
+ "seq:chr1:26729762:26729762": "T",
+ "seq:chrM:3243:3243": "A",
+ "mito:": [
+  {
+   "symbol": "D-loop",
+   "name": "D-loop",
+   "kind": "control",
+   "product": "制御領域",
+   "start": 16024,
+   "end": 16569,
+   "strand": "+"
+  },
+  {
+   "symbol": "D-loop",
+   "name": "D-loop",
+   "kind": "control",
+   "product": "制御領域",
+   "start": 1,
+   "end": 576,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TF",
+   "name": "TRNF",
+   "kind": "tRNA",
+   "product": "tRNA-Phe",
+   "start": 577,
+   "end": 647,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-RNR1",
+   "name": "RNR1",
+   "kind": "rRNA",
+   "product": "s-rRNA",
+   "start": 648,
+   "end": 1601,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TV",
+   "name": "TRNV",
+   "kind": "tRNA",
+   "product": "tRNA-Val",
+   "start": 1602,
+   "end": 1670,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-RNR2",
+   "name": "RNR2",
+   "kind": "rRNA",
+   "product": "l-rRNA",
+   "start": 1671,
+   "end": 3229,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TL1",
+   "name": "TRNL1",
+   "kind": "tRNA",
+   "product": "tRNA-Leu",
+   "start": 3230,
+   "end": 3304,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-ND1",
+   "name": "ND1",
+   "kind": "protein",
+   "product": "NADH dehydrogenase subunit 1",
+   "start": 3307,
+   "end": 4262,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TI",
+   "name": "TRNI",
+   "kind": "tRNA",
+   "product": "tRNA-Ile",
+   "start": 4263,
+   "end": 4331,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TQ",
+   "name": "TRNQ",
+   "kind": "tRNA",
+   "product": "tRNA-Gln",
+   "start": 4329,
+   "end": 4400,
+   "strand": "-"
+  },
+  {
+   "symbol": "MT-TM",
+   "name": "TRNM",
+   "kind": "tRNA",
+   "product": "tRNA-Met",
+   "start": 4402,
+   "end": 4469,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-ND2",
+   "name": "ND2",
+   "kind": "protein",
+   "product": "NADH dehydrogenase subunit 2",
+   "start": 4470,
+   "end": 5511,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TW",
+   "name": "TRNW",
+   "kind": "tRNA",
+   "product": "tRNA-Trp",
+   "start": 5512,
+   "end": 5579,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TA",
+   "name": "TRNA",
+   "kind": "tRNA",
+   "product": "tRNA-Ala",
+   "start": 5587,
+   "end": 5655,
+   "strand": "-"
+  },
+  {
+   "symbol": "MT-TN",
+   "name": "TRNN",
+   "kind": "tRNA",
+   "product": "tRNA-Asn",
+   "start": 5657,
+   "end": 5729,
+   "strand": "-"
+  },
+  {
+   "symbol": "MT-TC",
+   "name": "TRNC",
+   "kind": "tRNA",
+   "product": "tRNA-Cys",
+   "start": 5761,
+   "end": 5826,
+   "strand": "-"
+  },
+  {
+   "symbol": "MT-TY",
+   "name": "TRNY",
+   "kind": "tRNA",
+   "product": "tRNA-Tyr",
+   "start": 5826,
+   "end": 5891,
+   "strand": "-"
+  },
+  {
+   "symbol": "MT-CO1",
+   "name": "COX1",
+   "kind": "protein",
+   "product": "cytochrome c oxidase subunit I",
+   "start": 5904,
+   "end": 7445,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TS1",
+   "name": "TRNS1",
+   "kind": "tRNA",
+   "product": "tRNA-Ser",
+   "start": 7446,
+   "end": 7514,
+   "strand": "-"
+  },
+  {
+   "symbol": "MT-TD",
+   "name": "TRND",
+   "kind": "tRNA",
+   "product": "tRNA-Asp",
+   "start": 7518,
+   "end": 7585,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-CO2",
+   "name": "COX2",
+   "kind": "protein",
+   "product": "cytochrome c oxidase subunit II",
+   "start": 7586,
+   "end": 8269,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TK",
+   "name": "TRNK",
+   "kind": "tRNA",
+   "product": "tRNA-Lys",
+   "start": 8295,
+   "end": 8364,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-ATP8",
+   "name": "ATP8",
+   "kind": "protein",
+   "product": "ATP synthase F0 subunit 8",
+   "start": 8366,
+   "end": 8572,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-ATP6",
+   "name": "ATP6",
+   "kind": "protein",
+   "product": "ATP synthase F0 subunit 6",
+   "start": 8527,
+   "end": 9207,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-CO3",
+   "name": "COX3",
+   "kind": "protein",
+   "product": "cytochrome c oxidase subunit III",
+   "start": 9207,
+   "end": 9990,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TG",
+   "name": "TRNG",
+   "kind": "tRNA",
+   "product": "tRNA-Gly",
+   "start": 9991,
+   "end": 10058,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-ND3",
+   "name": "ND3",
+   "kind": "protein",
+   "product": "NADH dehydrogenase subunit 3",
+   "start": 10059,
+   "end": 10404,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TR",
+   "name": "TRNR",
+   "kind": "tRNA",
+   "product": "tRNA-Arg",
+   "start": 10405,
+   "end": 10469,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-ND4L",
+   "name": "ND4L",
+   "kind": "protein",
+   "product": "NADH dehydrogenase subunit 4L",
+   "start": 10470,
+   "end": 10766,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-ND4",
+   "name": "ND4",
+   "kind": "protein",
+   "product": "NADH dehydrogenase subunit 4",
+   "start": 10760,
+   "end": 12137,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TH",
+   "name": "TRNH",
+   "kind": "tRNA",
+   "product": "tRNA-His",
+   "start": 12138,
+   "end": 12206,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TS2",
+   "name": "TRNS2",
+   "kind": "tRNA",
+   "product": "tRNA-Ser",
+   "start": 12207,
+   "end": 12265,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TL2",
+   "name": "TRNL2",
+   "kind": "tRNA",
+   "product": "tRNA-Leu",
+   "start": 12266,
+   "end": 12336,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-ND5",
+   "name": "ND5",
+   "kind": "protein",
+   "product": "NADH dehydrogenase subunit 5",
+   "start": 12337,
+   "end": 14148,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-ND6",
+   "name": "ND6",
+   "kind": "protein",
+   "product": "NADH dehydrogenase subunit 6",
+   "start": 14149,
+   "end": 14673,
+   "strand": "-"
+  },
+  {
+   "symbol": "MT-TE",
+   "name": "TRNE",
+   "kind": "tRNA",
+   "product": "tRNA-Glu",
+   "start": 14674,
+   "end": 14742,
+   "strand": "-"
+  },
+  {
+   "symbol": "MT-CYB",
+   "name": "CYTB",
+   "kind": "protein",
+   "product": "cytochrome b",
+   "start": 14747,
+   "end": 15887,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TT",
+   "name": "TRNT",
+   "kind": "tRNA",
+   "product": "tRNA-Thr",
+   "start": 15888,
+   "end": 15953,
+   "strand": "+"
+  },
+  {
+   "symbol": "MT-TP",
+   "name": "TRNP",
+   "kind": "tRNA",
+   "product": "tRNA-Pro",
+   "start": 15956,
+   "end": 16023,
+   "strand": "-"
+  }
+ ],
+ "seq:chrM:8993:8993": "T",
+ "seq:chrM:16519:16519": "T",
+ "lift:chrM:3243:3243": {
+  "chrom": "chrM",
+  "start": 3243,
+  "end": 3243
+ }
 }

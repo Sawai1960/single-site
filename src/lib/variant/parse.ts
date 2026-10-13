@@ -5,6 +5,7 @@ import { ncToChrom } from "./chrom";
 export class ParseError extends Error {}
 
 const CPOS_RE = String.raw`[-*]?\d+(?:[+-]\d+)?`;
+const MITO_LENGTH = 16569;
 
 export function normalizeInput(raw: string): string {
   return raw
@@ -108,8 +109,40 @@ export function parseQuery(raw: string): ParsedQuery {
   const s = normalizeInput(raw);
   if (!s) throw new ParseError("入力が空です");
 
+  // m.3243A>G, NC_012920.1:m.3243A>G, MT-TL1:m.3243A>G
+  let m = s.match(/^(?:([A-Za-z0-9_.\-]+)\s*(?:\(([^)]+)\))?\s*[:,;\s]\s*)?m\.\s*(\d+)(?:_(\d+))?(.*)$/i);
+  if (m) {
+    const prefix = m[1];
+    let label: string | undefined = m[2]?.trim();
+    if (prefix && !/^(NC_012920(\.1)?|chrM|chrMT|M|MT|rCRS)$/i.test(prefix)) {
+      if (/^NC_001807/i.test(prefix)) {
+        throw new ParseError("NC_001807（UCSC hg19 の chrM）の m. 表記には対応していません。rCRS（NC_012920.1）の番号で入力してください");
+      }
+      if (/^(N[CGMRP]_|X[MPR]_|ENS)/i.test(prefix)) {
+        throw new ParseError("m. 表記はミトコンドリア DNA（NC_012920.1）にのみ使えます");
+      }
+      if (/^(hg19|hg38|grch37|grch38)$/i.test(prefix)) label = undefined;
+      else label = prefix;
+    }
+    const start = Number(m[3]);
+    const end = m[4] ? Number(m[4]) : start;
+    if (!start) throw new ParseError("m. の位置は 1 以上で指定してください");
+    if (end < start) throw new ParseError("終了位置が開始位置より前です");
+    if (end > MITO_LENGTH) throw new ParseError(`ミトコンドリア DNA（rCRS）は ${MITO_LENGTH.toLocaleString("en-US")} 塩基です。位置を確認してください`);
+    return {
+      kind: "genomic",
+      assembly: "hg38",
+      assemblyGiven: true,
+      chrom: "chrM",
+      start,
+      end,
+      change: m[5].replace(/\s/g, "").toUpperCase(),
+      mito: { label },
+    };
+  }
+
   // NC_000004.12:g.55106686G>A
-  let m = s.match(/^(NC_\d+\.\d+)\s*:\s*g\.(\d+)(?:_(\d+))?(.*)$/i);
+  m = s.match(/^(NC_\d+\.\d+)\s*:\s*g\.(\d+)(?:_(\d+))?(.*)$/i);
   if (m) {
     const nc = ncToChrom(m[1].toUpperCase());
     if (!nc) throw new ParseError(`対応していない NC_ 番号です: ${m[1]}`);

@@ -89,6 +89,8 @@ export function CandidateView({
       <div className="flex flex-wrap items-center gap-2">
         {c.transcript ? (
           <span className="font-mono text-sm font-semibold">{c.transcript}</span>
+        ) : c.chrom === "chrM" ? (
+          <Badge variant="secondary">ミトコンドリア DNA（rCRS）</Badge>
         ) : (
           <span className="text-sm text-muted-foreground">転写産物なし</span>
         )}
@@ -142,7 +144,8 @@ export function CandidateView({
           <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
             <Field label="c. 表記" value={c.hgvsC} />
             <Field label="p. 表記" value={c.hgvsP} />
-            <Field label="g. 表記（hg38）" value={c.hgvsG} />
+            <Field label={c.chrom === "chrM" ? "m. 表記（rCRS）" : "g. 表記（hg38）"} value={c.hgvsG} />
+            {c.region !== undefined && <Field label="ミトコンドリアの領域" value={c.region} mono={false} />}
             <Field
               label="リファレンス塩基（+鎖）"
               value={c.genomicRef ? (c.genomicRef.length > 40 ? `${c.genomicRef.slice(0, 40)}…` : c.genomicRef) : undefined}

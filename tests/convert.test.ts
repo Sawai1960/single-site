@@ -27,6 +27,7 @@ vi.mock("../src/lib/variant/remote", async (importOriginal) => {
     getSequence: replay("seq", actual.getSequence),
     liftHg19ToHg38: replay("lift", actual.liftHg19ToHg38),
     getRefSeqRecord: replay("refseq", actual.getRefSeqRecord),
+    getMitoGenes: replay("mito", actual.getMitoGenes),
   };
 });
 
@@ -248,6 +249,41 @@ describe("UCSC にアライメントの無いバージョン（NCBI の配列で
   it("転写産物と hg38 の間の挿入・欠失の近くでは位置がずれうることを注意する（ORAI1）", async () => {
     const r = await convertOne("NM_032790.4:c.131C>T");
     expect(r.candidates[0].warnings.join()).toContain("5 塩基の挿入・欠失の差");
+  });
+});
+
+describe("ミトコンドリア DNA", () => {
+  it("m.3243A>G（MELAS）は chrM:3243 の MT-TL1", async () => {
+    const r = await convertOne("MT-TL1:m.3243A>G");
+    expect(r.status).toBe("ok");
+    expect(r.format).toBe(1);
+    const c = r.candidates[0];
+    expect(c).toMatchObject({ chrom: "chrM", start: 3243, end: 3243, gene: "MT-TL1", transcript: "" });
+    expect(c.hgvsG).toBe("NC_012920.1:m.3243A>G");
+    expect(c.region).toContain("tRNA");
+    expect(c.refCheck?.ok).toBe(true);
+    expect(c.warnings.join()).toContain("ヘテロプラスミー");
+    expect(r.notes.join()).toContain("rCRS");
+    expect(r.notes.join()).not.toContain("遺伝子間領域");
+  });
+
+  it("タンパク質をコードする遺伝子（MT-ATP6）と D-loop を表示する", async () => {
+    const atp6 = (await convertOne("m.8993T>G")).candidates[0];
+    expect(atp6.gene).toContain("MT-ATP6");
+    expect(atp6.region).toContain("ATP synthase");
+    const dloop = (await convertOne("m.16519T>C")).candidates[0];
+    expect(dloop.gene).toBe("");
+    expect(dloop.region).toContain("D-loop");
+  });
+
+  it("入力の遺伝子名と位置の遺伝子が違えば警告する", async () => {
+    const r = await convertOne("MT-ND5:m.3243A>G");
+    expect(r.candidates[0].warnings.join()).toContain("一致しません");
+  });
+
+  it("hg19 の chrM は UCSC の NC_001807 と rCRS の番号の違いを警告する", async () => {
+    const r = await convertOne("hg19 chrM:3243");
+    expect(r.candidates[0].warnings.join()).toContain("NC_001807");
   });
 });
 

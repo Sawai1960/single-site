@@ -49,7 +49,7 @@ export function resultsToCsv(
     "終了(9桁)",
     "c.表記",
     "p.表記",
-    "g.表記",
+    "g./m.表記",
     "リファレンス(+鎖)",
     "リファレンス照合",
     "外部照合",
@@ -84,7 +84,7 @@ export function resultsToCsv(
         c.genomicRef ?? "",
         c.refCheck ? (c.refCheck.ok ? "一致" : `不一致(入力 ${c.refCheck.expected} / hg38 ${c.refCheck.observed})`) : "",
         external?.(ri, ci) ?? "",
-        [...r.notes, ...(versions ? [versions] : []), ...c.warnings].join(" / "),
+        [...(c.region ? [`ミトコンドリアの領域: ${c.region}`] : []), ...r.notes, ...(versions ? [versions] : []), ...c.warnings].join(" / "),
       ]);
     }
   }

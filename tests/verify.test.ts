@@ -28,6 +28,7 @@ vi.mock("../src/lib/variant/remote", async (importOriginal) => {
     getSequence: replay("seq", actual.getSequence),
     liftHg19ToHg38: replay("lift", actual.liftHg19ToHg38),
     getRefSeqRecord: replay("refseq", actual.getRefSeqRecord),
+    getMitoGenes: replay("mito", actual.getMitoGenes),
   };
 });
 

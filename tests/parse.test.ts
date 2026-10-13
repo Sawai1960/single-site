@@ -24,6 +24,37 @@ describe("形式1: ゲノム位置", () => {
   });
 });
 
+describe("ミトコンドリア DNA の m. 表記", () => {
+  it.each([
+    ["m.3243A>G", 3243, 3243, "A>G", undefined],
+    ["NC_012920.1:m.3243A>G", 3243, 3243, "A>G", undefined],
+    ["chrM:m.8993T>G", 8993, 8993, "T>G", undefined],
+    ["MT-TL1:m.3243A>G", 3243, 3243, "A>G", "MT-TL1"],
+    ["MT-ND5 m.13513G>A", 13513, 13513, "G>A", "MT-ND5"],
+    ["NC_012920.1(MT-ATP6):m.8993T>G", 8993, 8993, "T>G", "MT-ATP6"],
+    ["m.8470_13446del", 8470, 13446, "DEL", undefined],
+  ])("%s", (input, start, end, change, label) => {
+    expect(parseQuery(input)).toMatchObject({
+      kind: "genomic",
+      assembly: "hg38",
+      assemblyGiven: true,
+      chrom: "chrM",
+      start,
+      end,
+      change,
+      mito: { label },
+    });
+  });
+
+  it.each([
+    ["m.16570A>G", /16,569 塩基/],
+    ["NC_001807.4:m.3243A>G", /NC_001807/],
+    ["NM_000546.6:m.100A>G", /ミトコンドリア DNA/],
+  ])("%s はエラー", (input, message) => {
+    expect(() => parseQuery(input)).toThrow(message);
+  });
+});
+
 describe("形式2/4: c. 表記", () => {
   it.each([
     ["NM_002253.2:c.889G>A", { type: "transcript", acc: "NM_002253.2" }],

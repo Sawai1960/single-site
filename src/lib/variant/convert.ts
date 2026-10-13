@@ -12,7 +12,7 @@ import {
   type RefSeqIndex,
 } from "./refseq";
 import { bridgeTranscript } from "./bridge";
-import { getRefSeqRecord, getSequence, liftHg19ToHg38 } from "./remote";
+import { getMitoGenes, getRefSeqRecord, getSequence, liftHg19ToHg38, type MitoFeature } from "./remote";
 import type {
   ConversionResult,
   FormatNo,
@@ -606,6 +606,61 @@ async function compareVersions(
   return { rows, note, differs, complete };
 }
 
+const MITO_KIND_LABEL: Record<MitoFeature["kind"], string> = {
+  tRNA: "tRNA 遺伝子",
+  rRNA: "rRNA 遺伝子",
+  protein: "タンパク質をコードする遺伝子",
+  control: "非コード",
+};
+
+const mitoKey = (s: string) => s.toUpperCase().replace(/[-_\s]/g, "").replace(/^MT/, "");
+
+async function mitoCandidate(
+  base: Omit<ResultCandidate, "transcript" | "gene" | "protein" | "mane" | "historical" | "strand" | "warnings">,
+  fromHg19: boolean,
+  label: string | undefined,
+  notes: string[],
+  warnings: string[],
+): Promise<ResultCandidate> {
+  notes.push("ミトコンドリア DNA の番号は rCRS（NC_012920.1）の座標です。hg38 の chrM と同じ番号です");
+  if (fromHg19) {
+    warnings.push(
+      "UCSC の hg19 の chrM は rCRS とは別の配列（NC_001807）で、番号がずれる位置があります。元の資料の番号が rCRS（GRCh37 の MT）か UCSC hg19 の chrM かを確認してください。rCRS の番号なら m. 表記で入力してください",
+    );
+  }
+  let region = "";
+  let gene = "";
+  try {
+    const hits = (await getMitoGenes()).filter((f) => f.start <= base.end && f.end >= base.start);
+    gene = [...new Set(hits.filter((f) => f.kind !== "control").map((f) => f.symbol))].join(", ");
+    region = hits.length
+      ? hits
+          .map((f) =>
+            f.kind === "control"
+              ? "D-loop（制御領域、非コード）"
+              : `${f.symbol}: ${f.product}（${MITO_KIND_LABEL[f.kind]}${f.strand === "-" ? "、逆鎖" : ""}）`,
+          )
+          .join("／")
+      : "遺伝子と遺伝子の間の非コード領域";
+    if (label) {
+      const k = mitoKey(label);
+      const found = hits.some((f) => [f.symbol, f.name].some((x) => mitoKey(x) === k));
+      if (!found) {
+        warnings.push(
+          `入力の遺伝子名 ${label} は、この位置の遺伝子（${hits.map((f) => f.symbol).join("、") || "なし"}）と一致しません。位置を確認してください`,
+        );
+      }
+    }
+  } catch {
+    warnings.push("NCBI からミトコンドリアの遺伝子情報を取得できなかったため、遺伝子名を表示していません");
+  }
+  warnings.push(
+    "ミトコンドリア DNA の変異は細胞ごとに変異の割合（ヘテロプラスミー率）が異なり、同じ家系でも組織や人によって割合が大きく違います。シングルサイト検査で変異の割合も測定できるか検査会社に確認してください",
+    "核 DNA にはミトコンドリア DNA に似た配列（NUMT）があり、検査方法によっては誤検出の原因になります",
+  );
+  return { ...base, transcript: "", gene, protein: "", mane: "", historical: false, strand: "+", region, warnings };
+}
+
 async function convertGenomic(
   q: Extract<ParsedQuery, { kind: "genomic" }>,
   idx: RefSeqIndex,
@@ -655,6 +710,23 @@ async function convertGenomic(
     hgvsG: nc ? `${nc}:g.${range}${refGiven && altGiven ? `${refGiven}>${altGiven}` : ""}` : undefined,
     ucscUrl: ucscUrl(chrom, start, end),
   };
+
+  if (chrom === "chrM") {
+    let mChange = "";
+    if (refGiven && altGiven) mChange = `${refGiven}>${altGiven}`;
+    else if (/^(DEL|DUP|INS|INV)/i.test(q.change)) {
+      mChange = q.change.replace(/^(DELINS|DEL|DUP|INS|INV)/i, (s) => s.toLowerCase());
+    }
+    return [
+      await mitoCandidate(
+        { ...base, hgvsG: `NC_012920.1:m.${range}${mChange}` },
+        q.assembly === "hg19",
+        q.mito?.label,
+        notes,
+        warnings,
+      ),
+    ];
+  }
 
   const ts = sortTranscripts(overlapping(idx, chrom, start)).slice(0, MAX_GENOMIC_TRANSCRIPTS);
   if (!ts.length) {

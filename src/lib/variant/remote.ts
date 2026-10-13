@@ -106,6 +106,70 @@ export async function getRefSeqRecord(acc: string): Promise<RefSeqRecord> {
   return p;
 }
 
+export interface MitoFeature {
+  /** HGNC symbol, e.g. MT-TL1; "D-loop" for the control region */
+  symbol: string;
+  /** GenBank /gene, e.g. TRNL1 */
+  name: string;
+  kind: "tRNA" | "rRNA" | "protein" | "control";
+  product: string;
+  start: number;
+  end: number;
+  strand: "+" | "-";
+}
+
+/** Genes of the mitochondrial genome (rCRS, NC_012920.1 = hg38 chrM) from its GenBank record. */
+export function parseMitoGenBank(text: string): MitoFeature[] {
+  const features = text.split(/^ {5}(?=\S)/m).slice(1);
+  const out: MitoFeature[] = [];
+  const productOf = new Map<string, { kind: MitoFeature["kind"]; product: string }>();
+  for (const f of features) {
+    const kind = f.match(/^(tRNA|rRNA|CDS)\s/)?.[1];
+    const name = f.match(/\/gene="([^"]+)"/)?.[1];
+    if (!kind || !name) continue;
+    const product = f.match(/\/product="([^"]+)"/)?.[1]?.replace(/\s+/g, " ") ?? "";
+    productOf.set(name, { kind: kind === "CDS" ? "protein" : (kind as "tRNA" | "rRNA"), product });
+  }
+  for (const f of features) {
+    const head = f.match(/^(gene|D-loop)\s+(.+)$/m);
+    if (!head) continue;
+    const loc = head[2].trim();
+    const strand = loc.startsWith("complement") ? "-" : "+";
+    const ranges = [...loc.matchAll(/(\d+)\.\.(\d+)/g)].map((m) => [Number(m[1]), Number(m[2])] as const);
+    if (head[1] === "D-loop") {
+      for (const [start, end] of ranges) {
+        out.push({ symbol: "D-loop", name: "D-loop", kind: "control", product: "制御領域", start, end, strand: "+" });
+      }
+      continue;
+    }
+    const name = f.match(/\/gene="([^"]+)"/)?.[1];
+    if (!name || !ranges.length) continue;
+    const symbol = f.replace(/\s+/g, " ").match(/Official Symbol: (\S+)/)?.[1] ?? name;
+    const p = productOf.get(name);
+    out.push({ symbol, name, kind: p?.kind ?? "protein", product: p?.product ?? "", start: ranges[0][0], end: ranges[ranges.length - 1][1], strand });
+  }
+  return out;
+}
+
+const mg = globalThis as unknown as { __mitoGenes?: Promise<MitoFeature[]> };
+
+export function getMitoGenes(): Promise<MitoFeature[]> {
+  if (mg.__mitoGenes) return mg.__mitoGenes;
+  const p = (async () => {
+    const key = process.env.NCBI_API_KEY ? `&api_key=${encodeURIComponent(process.env.NCBI_API_KEY)}` : "";
+    await ncbiSlot();
+    const text = await fetchText(
+      `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_012920.1&rettype=gb&retmode=text${key}`,
+    );
+    const genes = parseMitoGenBank(text);
+    if (genes.length < 30) throw new Error("NCBI: ミトコンドリアの遺伝子情報を解析できません");
+    return genes;
+  })();
+  mg.__mitoGenes = p;
+  p.catch(() => (mg.__mitoGenes = undefined));
+  return p;
+}
+
 async function fromUcsc(chrom: string, start: number, end: number): Promise<string> {
   const url = `https://api.genome.ucsc.edu/getData/sequence?genome=hg38;chrom=${chrom};start=${start - 1};end=${end}`;
   const j = (await fetchJson(url)) as { dna?: string };

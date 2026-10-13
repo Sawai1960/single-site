@@ -17,6 +17,8 @@ export type ParsedQuery =
       start: number;
       end: number;
       change: string;
+      /** set for mitochondrial m. notation; label is a gene name written before it (e.g. MT-TL1) */
+      mito?: { label?: string };
     }
   | {
       kind: "cdna";
@@ -113,6 +115,8 @@ export interface ResultCandidate {
   snvCandidates?: SnvCandidate[];
   warnings: string[];
   ucscUrl: string;
+  /** mitochondrial genome: the gene/region at this position, e.g. "tRNA-Leu（tRNA）" */
+  region?: string;
   /** What to ask independent databases (NCBI, Ensembl) to cross-check this candidate */
   verify?: VerifyPlan;
 }

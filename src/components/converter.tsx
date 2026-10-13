@@ -25,6 +25,7 @@ const EXAMPLES: { label: string; value: string }[] = [
   { label: "形式4（c.）", value: "KDR:c.889G>A" },
   { label: "形式4（p.）", value: "KRAS p.G12D" },
   { label: "hg19", value: "hg19, chr7:55259515" },
+  { label: "ミトコンドリア", value: "m.3243A>G" },
 ];
 
 const MAX_LINES = 200;
@@ -246,7 +247,7 @@ export function Converter() {
       <footer className="border-t pt-4 text-xs leading-relaxed text-muted-foreground">
         データ: UCSC Genome Browser hg38 の NCBI RefSeq アライメント（現行版と旧バージョン）
         {meta ? `／${meta.mane}／転写産物アライメント ${meta.transcripts.toLocaleString()} 件（${new Date(meta.builtAt).toLocaleDateString("ja-JP")} 取得）` : ""}
-        。参照配列の照合には UCSC API（予備に Ensembl REST）、hg19 → hg38 変換には Ensembl REST を使います。
+        。参照配列の照合には UCSC API（予備に Ensembl REST）、hg19 → hg38 変換には Ensembl REST、ミトコンドリアの遺伝子情報には NCBI の NC_012920.1 を使います。
         外部データベースとの照合には NCBI Variation Services と Ensembl VEP（RefSeq 転写産物）を使います（先頭 {AUTO_VERIFY_RESULTS} 件は自動、それ以降は各候補の「照合する」から実行）。
         変換結果は参考情報です。依頼書へ記入する前に、必ずゲノムブラウザで目的の変異であることを確認してください。
       </footer>
@@ -256,7 +257,7 @@ export function Converter() {
 
 function FormatGuide() {
   const rows = [
-    { no: "1", title: "ゲノム位置", ex: ["hg38, chr1:195507262", "hg19 chr7:55259515 T>G", "NC_000004.12:g.55113391C>T"] },
+    { no: "1", title: "ゲノム位置", ex: ["hg38, chr1:195507262", "hg19 chr7:55259515 T>G", "NC_000004.12:g.55113391C>T", "NC_012920.1:m.3243A>G"] },
     { no: "2", title: "スプライシング型指定の c. 表記", ex: ["NM_002253.2:c.889G>A", "NM_002253.2, c.889G>A", "NM_000546.6:c.375+1G>A"] },
     { no: "3", title: "スプライシング型指定の p. 表記", ex: ["NP_443086.1:p.Asp509Glyfs", "NP_004976.2:p.G12D"] },
     { no: "4", title: "スプライシング型不明（遺伝子名）", ex: ["KDR:c.889G>A", "EGFR p.Leu858Arg"] },
@@ -266,7 +267,7 @@ function FormatGuide() {
       <CardHeader>
         <CardTitle>対応している入力形式</CardTitle>
         <CardDescription>
-          形式 2〜4 は hg38 のゲノム位置（形式 1）に変換します。形式 1 は hg38 上の位置の確認と、重なる転写産物の c. 表記を表示します。
+          形式 2〜4 は hg38 のゲノム位置（形式 1）に変換します。形式 1 は hg38 上の位置の確認と、重なる転写産物の c. 表記を表示します。ミトコンドリア DNA の m. 表記（rCRS の番号）も形式 1 として扱います。
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -299,6 +300,8 @@ function Cautions() {
     "古くから知られる変異は、シグナル配列を除いた成熟型タンパク質の番号で表記されていることがあります。その場合は、シグナル配列を含むコード領域上の番号に直してから入力してください。",
     "2 塩基以上の欠失は、範囲内のどの位置を指定しても構いません。依頼書の特記事項欄に欠失の内容を記入してください。",
     "NGS 法で確認できるのは 1〜20 塩基程度の小さな変異までです。PMS2・BMPR1A・SDHD・CHEK2・NF1 などは相同領域があり、受け入れが難しい場合があります。",
+    "難病の遺伝子パネル検査で見つかった変異の家系解析にも使えます。ただし、エクソン単位の欠失・重複（CNV）や反復配列の伸長（リピート病）は位置指定のシングルサイト検査の対象外です。CYP21A2・SMN1/SMN2・GBA1・PKD1 など偽遺伝子や相同領域がある遺伝子は、重複領域の警告が出ます。受け入れ可否は検査会社に確認してください。",
+    "ミトコンドリア DNA の変異は m. 表記（rCRS の番号、hg38 の chrM と同じ）で入力できます。変異の割合（ヘテロプラスミー率）は組織や人によって違うため、割合の測定が必要かどうかも含めて検査会社に確認してください。",
   ];
   return (
     <Card size="sm">
