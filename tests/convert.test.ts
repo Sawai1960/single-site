@@ -115,6 +115,24 @@ describe("照合と注意表示", () => {
   it("相同領域のある遺伝子（PMS2）に注意を出す", async () => {
     const r = await convertOne("PMS2:c.137G>T");
     expect(r.candidates[0].warnings.join()).toContain("相同領域");
+    expect(r.candidates[0].warnings.join()).not.toContain("分節重複");
+  });
+
+  it.each([
+    // UCSC と ClinVar（NCBI）で別のコピーに対応付けられていた旧版（validation/ANALYSIS.md）
+    ["NM_000854.3:c.338C>T", "GSTT2B"],
+    ["NM_001472.2:c.185C>T", "GAGE"],
+    ["SMN1:c.840C>T", "SMN2"],
+  ])("ほぼ同じ配列のコピーがある遺伝子（%s）に注意を出す", async (input, partner) => {
+    const r = await convertOne(input);
+    const w = r.candidates[0].warnings.find((x) => x.includes("分節重複"));
+    expect(w).toBeDefined();
+    expect(w).toContain(partner);
+  });
+
+  it("重複領域にない遺伝子には分節重複の注意を出さない", async () => {
+    const r = await convertOne("NM_004985.5:c.35G>A");
+    expect(r.candidates[0].warnings.join()).not.toContain("分節重複");
   });
 
   it("hg19 の位置を hg38 に変換する", async () => {

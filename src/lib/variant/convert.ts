@@ -2,7 +2,15 @@ import { aa3, revComp, translateCodon } from "./codon";
 import { chromToNC } from "./chrom";
 import { cdsLengthAA, cPosToGenome, formatCPos, genomeToC, MappingError } from "./mapping";
 import { ParseError, normalizeInput, parseQuery } from "./parse";
-import { accBase, accVersion, getIndex, overlapping, sortTranscripts, type RefSeqIndex } from "./refseq";
+import {
+  accBase,
+  accVersion,
+  duplicatedCopies,
+  getIndex,
+  overlapping,
+  sortTranscripts,
+  type RefSeqIndex,
+} from "./refseq";
 import { getSequence, liftHg19ToHg38 } from "./remote";
 import type {
   ConversionResult,
@@ -53,7 +61,22 @@ async function loadSequence(chrom: string, ranges: [number, number][]) {
 
 type SeqAccessor = Awaited<ReturnType<typeof loadSequence>>;
 
-function transcriptWarnings(t: Transcript): string[] {
+function duplicationWarning(idx: RefSeqIndex, t: Transcript): string | undefined {
+  if (HOMOLOGOUS_GENES.has(t.gene.toUpperCase())) return undefined;
+  const d = duplicatedCopies(idx, t);
+  if (!d) return undefined;
+  const shown = d.copies.slice(0, 3).map((c) => {
+    const genes = c.genes.length ? `（${c.genes.slice(0, 3).join("、")}）` : "";
+    return `${c.chrom}:${(c.start + 1).toLocaleString("en-US")} 付近${genes}`;
+  });
+  const more = d.copies.length > 3 ? ` ほか ${d.copies.length - 3} か所` : "";
+  return (
+    `${t.gene || t.acc} のコード領域は、配列が 95% 以上同一の重複領域（分節重複）にあります: ${shown.join("、")}${more}。` +
+    "データベースによって対応付けたコピーが異なることがあり、塩基の照合では区別できません。UCSC で位置と遺伝子名を確認してください"
+  );
+}
+
+function transcriptWarnings(idx: RefSeqIndex, t: Transcript): string[] {
   const w: string[] = [];
   if (t.hist) w.push(`${t.acc} は旧バージョンの転写産物です。現行版とゲノム位置が異なることがあります`);
   const aligned = t.blocks.reduce((s, b) => s + b[2], 0);
@@ -63,6 +86,8 @@ function transcriptWarnings(t: Transcript): string[] {
   if (HOMOLOGOUS_GENES.has(t.gene.toUpperCase())) {
     w.push(`${t.gene} はゲノム上に相同領域があり、解析精度を担保できず受け入れが難しい場合があります`);
   }
+  const dup = duplicationWarning(idx, t);
+  if (dup) w.push(dup);
   return w;
 }
 
@@ -202,6 +227,7 @@ async function convertCdna(
   q: CdnaQuery,
   ts: Transcript[],
 ): Promise<{ candidates: ResultCandidate[]; errors: string[] }> {
+  const idx = await getIndex();
   const errors: string[] = [];
   const mapped: { t: Transcript; lo: number; hi: number; warnings: string[] }[] = [];
   for (const t of ts) {
@@ -234,7 +260,7 @@ async function convertCdna(
     formatCPos(q.start) + (q.end !== q.start ? `_${formatCPos(q.end).slice(2)}` : "") + q.change;
 
   const candidates = mapped.map(({ t, lo, hi, warnings }) => {
-    const w = [...warnings, ...transcriptWarnings(t)];
+    const w = [...warnings, ...transcriptWarnings(idx, t)];
     const acc = seqs.get(t.chrom);
     let gRef: string | undefined;
     if (acc && hi - lo < 300) gRef = acc(lo, hi);
@@ -294,6 +320,7 @@ async function convertProtein(
   q: ProteinQuery,
   ts: Transcript[],
 ): Promise<{ candidates: ResultCandidate[]; errors: string[] }> {
+  const idx = await getIndex();
   const errors: string[] = [];
   const lastPos = q.pos2 ?? q.pos1;
   const mapped: { t: Transcript; codon1: number[]; codon2?: number[] }[] = [];
@@ -324,7 +351,7 @@ async function convertProtein(
   );
 
   const candidates = mapped.map(({ t, codon1, codon2 }) => {
-    const w = transcriptWarnings(t);
+    const w = transcriptWarnings(idx, t);
     const all = [...codon1, ...(codon2 ?? [])];
     const lo = Math.min(...all);
     const hi = Math.max(...all);
@@ -485,7 +512,7 @@ async function convertGenomic(
       historical: t.hist,
       strand: t.strand,
       hgvsC: cText,
-      warnings: [...warnings, ...transcriptWarnings(t).filter((x) => !x.includes("完全には一致しません"))],
+      warnings: [...warnings, ...transcriptWarnings(idx, t).filter((x) => !x.includes("完全には一致しません"))],
     };
   });
 }

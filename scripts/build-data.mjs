@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Builds data/refseq-hg38.json.gz from UCSC hg38 RefSeq alignment tables
-// (current + historical versions) and the NCBI MANE summary.
+// (current + historical versions), the NCBI MANE summary, and UCSC segmental
+// duplications (genomicSuperDups) for multi-copy gene warnings.
 import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { Readable } from "node:stream";
@@ -21,8 +22,21 @@ const PRIMARY = new Set([
   "chrM",
 ]);
 
+// Bump when the payload shape changes so `--if-missing` rebuilds stale files.
+const DATA_VERSION = 4;
+// Segmental duplications at least this identical are treated as copies a database may confuse.
+// Identity is averaged over the whole duplicated block, so tandem arrays such as GAGE
+// (exons near-identical, block identity ~96–97%) need a threshold below 0.97.
+const SEGDUP_MIN_IDENTITY = 0.95;
+
 if (process.argv.includes("--if-missing") && existsSync(OUT)) {
-  process.exit(0);
+  try {
+    const cur = JSON.parse(gunzipSync(readFileSync(OUT)).toString("utf8"));
+    if (cur.version === DATA_VERSION) process.exit(0);
+    console.log("Data file is from an older build; rebuilding...");
+  } catch {
+    console.log("Data file is unreadable; rebuilding...");
+  }
 }
 
 async function download(url, file) {
@@ -60,6 +74,7 @@ async function main() {
     "ncbiRefSeqCdsHistorical",
     "ncbiRefSeqLink",
     "ncbiRefSeqLinkHistorical",
+    "genomicSuperDups",
   ];
   const files = {};
   await Promise.all(
@@ -135,7 +150,17 @@ async function main() {
     }
   }
 
+  // genomicSuperDups columns: bin chrom chromStart chromEnd name score strand(6) otherChrom(7) otherStart otherEnd ... fracMatch(26)
+  // [chrom, start0, end, otherChrom, otherStart0, otherEnd, fracMatch, strand]
+  const segdups = [];
+  for (const r of readTsv(files.genomicSuperDups)) {
+    const frac = Number(r[26]);
+    if (frac < SEGDUP_MIN_IDENTITY || !PRIMARY.has(r[1]) || !PRIMARY.has(r[7])) continue;
+    segdups.push([r[1], Number(r[2]), Number(r[3]), r[7], Number(r[8]), Number(r[9]), Math.round(frac * 1000) / 1000, r[6]]);
+  }
+
   const payload = {
+    version: DATA_VERSION,
     builtAt: new Date().toISOString(),
     sources: {
       ucsc: UCSC,
@@ -143,6 +168,7 @@ async function main() {
       maneVersion,
     },
     transcripts,
+    segdups,
   };
   writeFileSync(OUT, gzipSync(JSON.stringify(payload)));
   console.log(`Wrote ${transcripts.length} alignments to ${path.relative(ROOT, OUT)}`);
