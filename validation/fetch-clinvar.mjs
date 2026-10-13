@@ -1,14 +1,34 @@
 #!/usr/bin/env node
 // Streams ClinVar variant_summary.txt.gz and writes a stratified, reproducible sample of
 // GRCh38 variants described on NM_ transcripts to validation/clinvar-sample.tsv.
-import { createWriteStream } from "node:fs";
+//
+// Options:
+//   --seed N                  PRNG seed (default 20231009)
+//   --out FILE                output file (default validation/clinvar-sample.tsv)
+//   --exclude-genes-from FILE skip every gene that appears in an existing sample (held-out validation)
+import { createWriteStream, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { Readable } from "node:stream";
 import { createGunzip } from "node:zlib";
 import path from "node:path";
 
+const DIR = path.dirname(new URL(import.meta.url).pathname);
+const arg = (name) => {
+  const i = process.argv.indexOf(name);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+};
+
 const URL_SUMMARY = "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/variant_summary.txt.gz";
-const OUT = path.join(path.dirname(new URL(import.meta.url).pathname), "clinvar-sample.tsv");
+const OUT = path.resolve(arg("--out") ?? path.join(DIR, "clinvar-sample.tsv"));
+const EXCLUDE_FROM = arg("--exclude-genes-from");
+const excludedGenes = new Set(
+  EXCLUDE_FROM
+    ? readFileSync(EXCLUDE_FROM, "utf8")
+        .split("\n")
+        .filter((l) => l && !l.startsWith("#") && !l.startsWith("variation_id"))
+        .map((l) => l.split("\t")[3])
+    : [],
+);
 
 const CAPS = {
   "cds:substitution": 3000,
@@ -22,7 +42,7 @@ const CAPS = {
 };
 
 // Deterministic PRNG so the sample is reproducible for the same ClinVar release.
-let seed = 20231009;
+let seed = Number(arg("--seed") ?? 20231009);
 function rand() {
   seed = (seed * 1664525 + 1013904223) >>> 0;
   return seed / 2 ** 32;
@@ -74,6 +94,7 @@ async function main() {
     if (!m) continue;
     const posVcf = f[cols.PositionVCF];
     if (!posVcf || posVcf === "-1" || f[cols.ReferenceAlleleVCF] === "na") continue;
+    if (excludedGenes.has(m[2])) continue;
     const category = categorize(m[3]);
     if (!category) continue;
     const r = reservoirs[category];
@@ -102,7 +123,13 @@ async function main() {
   }
 
   const out = createWriteStream(OUT);
-  out.write(`# source: ${URL_SUMMARY} (Last-Modified: ${lastModified})\n`);
+  const extra = [
+    `seed ${arg("--seed") ?? 20231009}`,
+    EXCLUDE_FROM ? `excluding ${excludedGenes.size} genes from ${path.basename(EXCLUDE_FROM)}` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+  out.write(`# source: ${URL_SUMMARY} (Last-Modified: ${lastModified}; ${extra})\n`);
   out.write(header + "\n");
   for (const [k, r] of Object.entries(reservoirs)) {
     console.log(`${k.padEnd(22)} ${String(r.rows.length).padStart(5)} sampled / ${r.seen.toLocaleString()} eligible`);

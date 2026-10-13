@@ -18,6 +18,12 @@ const argN = (name: string, def: number) => {
   return i >= 0 ? Number(process.argv[i + 1]) : def;
 };
 const NETWORK_SAMPLE = argN("--network-sample", 300);
+const argS = (name: string, def: string) => {
+  const i = process.argv.indexOf(name);
+  return i >= 0 ? process.argv[i + 1] : def;
+};
+const SAMPLE_FILE = path.resolve(argS("--sample", path.join(DIR, "clinvar-sample.tsv")));
+const REPORT_FILE = path.resolve(argS("--report", path.join(DIR, "report.md")));
 
 interface Case {
   id: string;
@@ -58,7 +64,7 @@ function record(key: string, label: string, outcome: Outcome, detail?: string) {
 }
 
 function loadCases(): { source: string; cases: Case[] } {
-  const lines = readFileSync(path.join(DIR, "clinvar-sample.tsv"), "utf8").split("\n");
+  const lines = readFileSync(SAMPLE_FILE, "utf8").split("\n");
   const source = lines[0].replace(/^# source: /, "");
   const cases = lines
     .slice(2)
@@ -155,17 +161,23 @@ async function main() {
     const ts = exact ? pickTranscripts(exact, k.chrom) : [];
     if (exact && !ts.length) record(key2, label2, "skip", "NM_ のアライメントが別の染色体のみ");
 
+    // A transcript can align to several loci (multi-copy genes, PAR). The tool lists every
+    // alignment as a candidate, so judge the case by the candidate closest to ClinVar.
+    const mappedAll: { t: Transcript; m: { lo: number; hi: number } }[] = [];
+    let mapError: string | undefined;
     for (const t of ts) {
-      let m: { lo: number; hi: number };
       try {
-        m = mapCdna(q, t);
+        mappedAll.push({ t, m: mapCdna(q, t) });
       } catch (e) {
-        if (e instanceof MappingError) {
-          record(key2, label2, "fail", `${k.nm}:${k.c} — ${e.message}（ClinVar ${k.chrom}:${k.start}-${k.stop}）`);
-          continue;
-        }
-        throw e;
+        if (!(e instanceof MappingError)) throw e;
+        mapError = e.message;
       }
+    }
+    if (ts.length && !mappedAll.length) {
+      record(key2, label2, "fail", `${k.nm}:${k.c} — ${mapError}（ClinVar ${k.chrom}:${k.start}-${k.stop}）`);
+    }
+    mappedAll.sort((a, b) => Math.abs(a.m.lo - k.start) - Math.abs(b.m.lo - k.start));
+    for (const { t, m } of mappedAll.slice(0, 1)) {
       if (isSub) {
         const ok = m.lo === k.start && m.hi === k.start;
         const refOk = (t.strand === "+" ? q.refAllele : revComp(q.refAllele!)) === k.refVcf;
@@ -347,7 +359,7 @@ function writeReport(source: string, total: number, shifted: number, secs: numbe
   lines.push("# ClinVar を正解とした検証レポート", "");
   lines.push(`- 実行日時: ${new Date().toISOString()}`);
   lines.push(`- 正解データ: ${source}`);
-  lines.push(`- サンプル: ${total.toLocaleString()} 件（\`validation/clinvar-sample.tsv\`、種類別に層化抽出）`);
+  lines.push(`- サンプル: ${total.toLocaleString()} 件（\`validation/${path.basename(SAMPLE_FILE)}\`、種類別に層化抽出）`);
   lines.push(`- 所要時間: ${secs.toFixed(0)} 秒`, "");
   lines.push("| 検証項目 | 区分 | 一致 | 不一致 | 対象外 | 一致率 |", "| --- | --- | ---: | ---: | ---: | ---: |");
   let totalPass = 0;
@@ -396,7 +408,7 @@ function writeReport(source: string, total: number, shifted: number, secs: numbe
     if (s.failures.length > 100) lines.push(`- …ほか ${s.failures.length - 100} 件`);
     lines.push("");
   }
-  writeFileSync(path.join(DIR, "report.md"), lines.join("\n"));
+  writeFileSync(REPORT_FILE, lines.join("\n"));
   console.log(lines.slice(0, order.length + 12).join("\n"));
   console.log(`\nfailures: ${totalFail}`);
 }

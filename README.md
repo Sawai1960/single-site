@@ -68,26 +68,31 @@ ClinVar の `variant_summary.txt.gz`（GRCh38）から、NM_ の c. 表記と hg
 | 形式4 | `遺伝子名:c.` の候補に正解位置が含まれるか |
 | 画面と同じ処理 | 300 件を Web API と同じ処理全体（リファレンス照合を含む）で確認します |
 
-最新の結果は [`validation/report.md`](validation/report.md) にあります。22,900 件の比較のうち 22,894 件（99.97%）が一致しました。
+サンプルは 2 つあります。1 つ目（開発用）は、見つかった不具合の修正に使いました。2 つ目（評価用）は、開発用に含まれた 3,919 遺伝子をすべて除外して抽出した、**一度も見ていない遺伝子だけ**のサンプルです。
 
-不一致の 6 件はすべて SHANK3（NM_001372044.2）です。この転写産物は 39 塩基が hg38 に存在しない、GRCh38 の既知の欠損領域にあります。NCBI の転写産物配列と直接比べたところ、本ツールの番号付けが配列どおりで、ClinVar 側の番号がずれていることを確認しました。詳しくはレポートの「不一致の原因分析」を参照してください。
+| サンプル | 一致 / 照合件数 | 一致率 |
+| --- | ---: | ---: |
+| 開発用（[`report.md`](validation/report.md)） | 22,894 / 22,900 | 99.97% |
+| 評価用・未見の遺伝子（[`report-heldout.md`](validation/report-heldout.md)） | 23,214 / 23,226 | 99.95% |
 
-この検証で見つかった次の不具合は修正済みで、回帰テストに含めています。
-
-- 転写開始点より上流の `c.-N`（プロモーター領域）が「範囲外」エラーになっていた
-- エクソン境界をまたぐ挿入（`c.849_850insA` など）が、イントロン全体の範囲になっていた
-- 転写産物の末端にある、ゲノムに整列していない部分（ポリA など）の `c.*N` がエラーになっていた
+不一致 18 件はすべて原因を調べました。本ツールが警告なしに誤った位置を出したケースはありませんでした。大半は、hg38 の参照配列の欠損（SHANK3、MROH8）か ClinVar 側の表記誤りです。いずれも NCBI の転写産物配列と直接比べて確認しました。検証で見つかった不具合 4 件は修正済みで、回帰テストに含めています。詳しくは [`validation/ANALYSIS.md`](validation/ANALYSIS.md) を参照してください。
 
 ClinVar のサンプルは、次のコマンドで最新版から取り直せます（約 450 MB をストリーミングで読み込みます。保存はしません）。
 
 ```bash
 npm run validate:fetch   # validation/clinvar-sample.tsv を再作成
 npm run validate         # validation/report.md を更新（外部 API で一部の参照配列を取得します）
+
+# 評価用: 開発用サンプルの遺伝子を除外し、乱数シードを変えて抽出・検証
+node validation/fetch-clinvar.mjs --seed 777 \
+  --exclude-genes-from validation/clinvar-sample.tsv --out validation/clinvar-sample-heldout.tsv
+npx tsx validation/validate-clinvar.ts \
+  --sample validation/clinvar-sample-heldout.tsv --report validation/report-heldout.md
 ```
 
 ### 2. 回帰テスト（`npm test`）
 
-`tests/` に 95 件のテストがあります。
+`tests/` に 97 件のテストがあります。
 
 - `parse.test.ts`: 色々な書き方の入力（全角文字、ClinVar 形式、1 文字・3 文字のアミノ酸記号、エラー入力）の解析
 - `mapping.test.ts`: ClinVar の正解値を使った座標計算（両方の鎖、イントロン、UTR、欠失・挿入、修正した不具合の再発防止）
