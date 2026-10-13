@@ -1,9 +1,9 @@
 # ClinVar を正解とした検証レポート
 
-- 実行日時: 2026-10-13T15:45:46.744Z
+- 実行日時: 2026-10-13T16:29:47.602Z
 - 正解データ: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/variant_summary.txt.gz (Last-Modified: Mon, 12 Oct 2026 22:21:13 GMT)
 - サンプル: 9,000 件（`validation/clinvar-sample.tsv`、種類別に層化抽出）
-- 所要時間: 113 秒
+- 所要時間: 170 秒
 
 | 検証項目 | 区分 | 一致 | 不一致 | 対象外 | 一致率 |
 | --- | --- | ---: | ---: | ---: | ---: |
