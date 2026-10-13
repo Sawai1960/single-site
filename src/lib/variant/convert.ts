@@ -85,7 +85,7 @@ function latestPerBase(ts: Transcript[]): Transcript[] {
   return ts.filter((t) => keep.has(t.acc));
 }
 
-function resolveTarget(idx: RefSeqIndex, target: QueryTarget): Resolved {
+export function resolveTarget(idx: RefSeqIndex, target: QueryTarget): Resolved {
   const notes: string[] = [];
   if (target.type === "transcript") {
     const hasVersion = target.acc.includes(".");
@@ -161,22 +161,52 @@ function hgvsGChange(
   }
 }
 
+type CdnaQuery = Extract<ParsedQuery, { kind: "cdna" }>;
+type ProteinQuery = Extract<ParsedQuery, { kind: "protein" }>;
+
+/** c. range → genomic range on hg38 (+ strand, 1-based inclusive). Throws MappingError. */
+export function mapCdna(q: CdnaQuery, t: Transcript): { lo: number; hi: number; warnings: string[] } {
+  const a = cPosToGenome(t, q.start);
+  const b = q.end === q.start ? a : cPosToGenome(t, q.end);
+  if ((t.strand === "+" && b.genomic < a.genomic) || (t.strand === "-" && b.genomic > a.genomic)) {
+    throw new MappingError("範囲の終了位置が開始位置より前です");
+  }
+  const warnings = [...new Set([...a.warnings, ...b.warnings])];
+  if (q.varType === "insertion" && Math.abs(b.genomic - a.genomic) > 1) {
+    // Flanking bases sit in different exons: place the insertion just before the 3' exon, as ClinVar/NCBI do.
+    warnings.push("挿入位置がエクソン境界にあるため、3' 側エクソンの直前への挿入として計算しました");
+    return t.strand === "+"
+      ? { lo: b.genomic - 1, hi: b.genomic, warnings }
+      : { lo: b.genomic, hi: b.genomic + 1, warnings };
+  }
+  return {
+    lo: Math.min(a.genomic, b.genomic),
+    hi: Math.max(a.genomic, b.genomic),
+    warnings,
+  };
+}
+
+/** Genomic positions of the codon(s) named in a p. query, in transcript order. Throws MappingError. */
+export function mapProtein(q: ProteinQuery, t: Transcript): { codon1: number[]; codon2?: number[] } {
+  const lastPos = q.pos2 ?? q.pos1;
+  const n = cdsLengthAA(t);
+  if (lastPos > n + 1) {
+    throw new MappingError(`アミノ酸位置 ${lastPos} はタンパク質の長さ（${n} 残基）を超えています`);
+  }
+  const codonGenomic = (p: number) =>
+    [0, 1, 2].map((i) => cPosToGenome(t, { base: 3 * p - 2 + i, utr3: false, offset: 0 }).genomic);
+  return { codon1: codonGenomic(q.pos1), codon2: q.pos2 ? codonGenomic(q.pos2) : undefined };
+}
+
 async function convertCdna(
-  q: Extract<ParsedQuery, { kind: "cdna" }>,
+  q: CdnaQuery,
   ts: Transcript[],
 ): Promise<{ candidates: ResultCandidate[]; errors: string[] }> {
   const errors: string[] = [];
   const mapped: { t: Transcript; lo: number; hi: number; warnings: string[] }[] = [];
   for (const t of ts) {
     try {
-      const a = cPosToGenome(t, q.start);
-      const b = q.end === q.start ? a : cPosToGenome(t, q.end);
-      const lo = Math.min(a.genomic, b.genomic);
-      const hi = Math.max(a.genomic, b.genomic);
-      if ((t.strand === "+" && b.genomic < a.genomic) || (t.strand === "-" && b.genomic > a.genomic)) {
-        throw new MappingError("範囲の終了位置が開始位置より前です");
-      }
-      mapped.push({ t, lo, hi, warnings: [...new Set([...a.warnings, ...b.warnings])] });
+      mapped.push({ t, ...mapCdna(q, t) });
     } catch (e) {
       if (e instanceof MappingError) errors.push(`${t.acc}: ${e.message}`);
       else throw e;
@@ -261,24 +291,17 @@ async function convertCdna(
 }
 
 async function convertProtein(
-  q: Extract<ParsedQuery, { kind: "protein" }>,
+  q: ProteinQuery,
   ts: Transcript[],
 ): Promise<{ candidates: ResultCandidate[]; errors: string[] }> {
   const errors: string[] = [];
   const lastPos = q.pos2 ?? q.pos1;
   const mapped: { t: Transcript; codon1: number[]; codon2?: number[] }[] = [];
-  const codonGenomic = (t: Transcript, p: number) =>
-    [0, 1, 2].map((i) => cPosToGenome(t, { base: 3 * p - 2 + i, utr3: false, offset: 0 }).genomic);
   for (const t of ts) {
-    const n = cdsLengthAA(t);
-    if (lastPos > n + 1) {
-      errors.push(`${t.acc}（${t.prot}）: アミノ酸位置 ${lastPos} はタンパク質の長さ（${n} 残基）を超えています`);
-      continue;
-    }
     try {
-      mapped.push({ t, codon1: codonGenomic(t, q.pos1), codon2: q.pos2 ? codonGenomic(t, q.pos2) : undefined });
+      mapped.push({ t, ...mapProtein(q, t) });
     } catch (e) {
-      if (e instanceof MappingError) errors.push(`${t.acc}: ${e.message}`);
+      if (e instanceof MappingError) errors.push(`${t.acc}（${t.prot}）: ${e.message}`);
       else throw e;
     }
   }
