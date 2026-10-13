@@ -128,7 +128,7 @@ async function main() {
   const t0 = Date.now();
   const { source, cases } = loadCases();
   const idx = await getIndex();
-  const deferred: { k: Case; q: Extract<ParsedQuery, { kind: "cdna" }>; t: Transcript; lo: number; hi: number }[] = [];
+  const deferred: { k: Case; q: Extract<ParsedQuery, { kind: "cdna" }>; t: Transcript; lo: number; hi: number; key: string; label: string; via: string }[] = [];
   const proteinNetwork: { k: Case; q: Extract<ParsedQuery, { kind: "protein" }>; t: Transcript; codon: number[] }[] = [];
 
   for (const k of cases) {
@@ -158,8 +158,14 @@ async function main() {
     } catch {
       /* not found at all */
     }
-    const ts = exact ? pickTranscripts(exact, k.chrom) : [];
+    // When the exact version is missing the tool falls back to another version (with a warning);
+    // measure how often that fallback still lands on the right position.
+    const fallback = !exact;
+    const keyM = fallback ? `f2fb:${k.category}` : key2;
+    const labelM = fallback ? "形式2（旧版がデータに無く、別バージョンで代替計算）" : label2;
+    const ts = exact ? pickTranscripts(exact, k.chrom) : resolved;
     if (exact && !ts.length) record(key2, label2, "skip", "NM_ のアライメントが別の染色体のみ");
+    if (fallback && !ts.length) record(keyM, labelM, "skip", "どのバージョンの NM_ もデータに無い");
 
     // A transcript can align to several loci (multi-copy genes, PAR). The tool lists every
     // alignment as a candidate, so judge the case by the candidate closest to ClinVar.
@@ -174,20 +180,22 @@ async function main() {
       }
     }
     if (ts.length && !mappedAll.length) {
-      record(key2, label2, "fail", `${k.nm}:${k.c} — ${mapError}（ClinVar ${k.chrom}:${k.start}-${k.stop}）`);
+      record(keyM, labelM, "fail", `${k.nm}:${k.c} — ${mapError}（ClinVar ${k.chrom}:${k.start}-${k.stop}）`);
     }
     mappedAll.sort((a, b) => Math.abs(a.m.lo - k.start) - Math.abs(b.m.lo - k.start));
     for (const { t, m } of mappedAll.slice(0, 1)) {
+      const via = fallback ? `（${t.acc} で代替）` : "";
       if (isSub) {
         const ok = m.lo === k.start && m.hi === k.start;
         const refOk = (t.strand === "+" ? q.refAllele : revComp(q.refAllele!)) === k.refVcf;
         const altOk = (t.strand === "+" ? q.altAllele : revComp(q.altAllele!)) === k.altVcf;
         record(
-          key2,
-          label2,
+          keyM,
+          labelM,
           ok && refOk && altOk ? "pass" : "fail",
-          `${k.nm}:${k.c} — 本ツール ${t.chrom}:${m.lo}${t.strand}, ClinVar ${k.chrom}:${k.start} ${k.refVcf}>${k.altVcf}${refOk ? "" : "（鎖の向きの不一致）"}`,
+          `${k.nm}:${k.c}${via} — 本ツール ${t.chrom}:${m.lo}${t.strand}, ClinVar ${k.chrom}:${k.start} ${k.refVcf}>${k.altVcf}${refOk ? "" : "（鎖の向きの不一致）"}`,
         );
+        if (fallback) continue;
 
         const key1 = `f1:${k.category}`;
         const label1 = "形式1（逆変換）: hg38 位置 → c. 表記";
@@ -195,9 +203,9 @@ async function main() {
         const back = genomeToC(t, k.start);
         record(key1, label1, back === `c.${cPos}` ? "pass" : "fail", `${k.chrom}:${k.start} → 本ツール ${back}, ClinVar c.${cPos}（${k.nm}）`);
       } else if (m.lo === k.start && m.hi === k.stop) {
-        record(key2, label2, "pass");
+        record(keyM, labelM, "pass");
       } else {
-        deferred.push({ k, q, t, lo: m.lo, hi: m.hi });
+        deferred.push({ k, q, t, lo: m.lo, hi: m.hi, key: keyM, label: labelM, via });
       }
     }
 
@@ -278,9 +286,7 @@ async function main() {
 
   // Indels whose position differs from ClinVar: accept if both describe the same resulting sequence.
   let shifted = 0;
-  await pool(deferred, 4, async ({ k, q, t, lo, hi }) => {
-    const key2 = `f2:${k.category}`;
-    const label2 = "形式2: NM_:c. → hg38 位置";
+  await pool(deferred, 4, async ({ k, q, t, lo, hi, key: key2, label: label2, via }) => {
     const wLo = Math.min(lo, k.posVcf) - 60;
     const wHi = Math.max(hi, k.posVcf + k.refVcf.length) + 60;
     let seq: string;
@@ -293,7 +299,7 @@ async function main() {
     const ref = (a: number, b: number) => seq.slice(a - wLo, b - wLo + 1);
     const ours = ourEdit(q, t, lo, hi, ref);
     if (!ours) {
-      record(key2, label2, "fail", `${k.nm}:${k.c} — 変異の種類を判定できない`);
+      record(key2, label2, "fail", `${k.nm}:${k.c}${via} — 変異の種類を判定できない`);
       return;
     }
     const a = applyEdit(seq, wLo, ours.start, ours.end, ours.insert);
@@ -302,7 +308,7 @@ async function main() {
       shifted++;
       record(key2, label2, "pass");
     } else {
-      record(key2, label2, "fail", `${k.nm}:${k.c} — 本ツール ${t.chrom}:${lo}-${hi}, ClinVar ${k.chrom}:${k.start}-${k.stop}（VCF ${k.posVcf} ${k.refVcf}>${k.altVcf}）`);
+      record(key2, label2, "fail", `${k.nm}:${k.c}${via} — 本ツール ${t.chrom}:${lo}-${hi}, ClinVar ${k.chrom}:${k.start}-${k.stop}（VCF ${k.posVcf} ${k.refVcf}>${k.altVcf}）`);
     }
   });
   for (const s of Object.entries(checks)) if (s[0].startsWith("f2:any")) s[1].equivalentByShift = 0;
@@ -367,8 +373,10 @@ function writeReport(source: string, total: number, shifted: number, secs: numbe
   for (const k of order) {
     const s = checks[k];
     const n = s.pass + s.fail;
-    totalPass += s.pass;
-    totalFail += s.fail;
+    if (!k.startsWith("f2fb:")) {
+      totalPass += s.pass;
+      totalFail += s.fail;
+    }
     const cat = k.split(":").slice(1).join(":") || "—";
     lines.push(`| ${s.label} | ${cat} | ${s.pass} | ${s.fail} | ${s.skip} | ${n ? ((100 * s.pass) / n).toFixed(2) : "—"}% |`);
   }
@@ -381,6 +389,12 @@ function writeReport(source: string, total: number, shifted: number, secs: numbe
     "「対象外」は、正解との比較が成り立たないケースです（ClinVar の NM_ バージョンが UCSC のデータにない、遺伝子名で入力すると現行版の転写産物で計算するため ClinVar の旧版と 5'UTR の長さが違う、など）。",
     "",
   );
+  if (order.some((k) => k.startsWith("f2fb:"))) {
+    lines.push(
+      "「形式2（旧版がデータに無く、別バージョンで代替計算）」は、入力された旧バージョンの NM_ が UCSC のデータに無いため、本ツールが同じ番号の別バージョンで計算した場合に、ClinVar の正解位置と一致した割合です。バージョン間で 5'UTR やエクソン構造が変わると位置がずれるのは仕様上避けられない（本ツールは代替時に警告を出す）ため、合計には含めていません。",
+      "",
+    );
+  }
   lines.push("## 対象外の理由", "");
   for (const k of order) {
     for (const [reason, n] of checks[k].skips) lines.push(`- ${checks[k].label}（${k.split(":").slice(1).join(":")}）: ${reason} — ${n} 件`);

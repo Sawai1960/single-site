@@ -6,10 +6,12 @@
 //   --seed N                  PRNG seed (default 20231009)
 //   --out FILE                output file (default validation/clinvar-sample.tsv)
 //   --exclude-genes-from FILE skip every gene that appears in an existing sample (held-out validation)
+//   --historical-only         keep only variants named on an NM_ version that is not the current
+//                             RefSeq release (per data/refseq-hg38.json.gz)
 import { createWriteStream, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { Readable } from "node:stream";
-import { createGunzip } from "node:zlib";
+import { createGunzip, gunzipSync } from "node:zlib";
 import path from "node:path";
 
 const DIR = path.dirname(new URL(import.meta.url).pathname);
@@ -27,6 +29,14 @@ const excludedGenes = new Set(
         .split("\n")
         .filter((l) => l && !l.startsWith("#") && !l.startsWith("variation_id"))
         .map((l) => l.split("\t")[3])
+    : [],
+);
+const HISTORICAL_ONLY = process.argv.includes("--historical-only");
+const currentNM = new Set(
+  HISTORICAL_ONLY
+    ? JSON.parse(gunzipSync(readFileSync(path.join(DIR, "..", "data", "refseq-hg38.json.gz"))).toString("utf8"))
+        .transcripts.filter((t) => !t.hist)
+        .map((t) => t.acc)
     : [],
 );
 
@@ -95,6 +105,7 @@ async function main() {
     const posVcf = f[cols.PositionVCF];
     if (!posVcf || posVcf === "-1" || f[cols.ReferenceAlleleVCF] === "na") continue;
     if (excludedGenes.has(m[2])) continue;
+    if (HISTORICAL_ONLY && currentNM.has(m[1])) continue;
     const category = categorize(m[3]);
     if (!category) continue;
     const r = reservoirs[category];
@@ -126,6 +137,7 @@ async function main() {
   const extra = [
     `seed ${arg("--seed") ?? 20231009}`,
     EXCLUDE_FROM ? `excluding ${excludedGenes.size} genes from ${path.basename(EXCLUDE_FROM)}` : "",
+    HISTORICAL_ONLY ? "historical NM_ versions only" : "",
   ]
     .filter(Boolean)
     .join(", ");
