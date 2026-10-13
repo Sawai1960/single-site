@@ -1,0 +1,269 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { ArrowRightLeft, Download, Eraser, Loader2, OctagonX } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { ResultCard } from "@/components/result-card";
+import { resultsToCsv } from "@/lib/variant/format";
+import type { ConversionResult } from "@/lib/variant/types";
+
+const EXAMPLES: { label: string; value: string }[] = [
+  { label: "形式1", value: "hg38, chr4:55113391" },
+  { label: "形式2", value: "NM_002253.2:c.889G>A" },
+  { label: "形式3", value: "NP_443086.1:p.Asp509Glyfs" },
+  { label: "形式4（c.）", value: "KDR:c.889G>A" },
+  { label: "形式4（p.）", value: "KRAS p.G12D" },
+  { label: "hg19", value: "hg19, chr7:55259515" },
+];
+
+const MAX_LINES = 200;
+
+export function Converter() {
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [results, setResults] = useState<ConversionResult[] | null>(null);
+  const [meta, setMeta] = useState<{ builtAt: string; mane: string; transcripts: number } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/meta")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m) => m && setMeta(m))
+      .catch(() => {});
+  }, []);
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  async function run() {
+    if (!lines.length || loading) return;
+    if (lines.length > MAX_LINES) {
+      setError(`一度に変換できるのは ${MAX_LINES} 行までです（現在 ${lines.length} 行）`);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/convert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ queries: lines }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setResults(json.results);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function addExample(v: string) {
+    setText((t) => (t.trim() ? `${t.replace(/\s+$/, "")}\n${v}` : v));
+  }
+
+  function downloadCsv() {
+    if (!results) return;
+    const blob = new Blob([resultsToCsv(results)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const d = new Date();
+    const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+    a.href = url;
+    a.download = `hg38_positions_${stamp}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const counts = results
+    ? {
+        ok: results.filter((r) => r.status === "ok").length,
+        warning: results.filter((r) => r.status === "warning").length,
+        error: results.filter((r) => r.status === "error").length,
+      }
+    : null;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>変異の位置情報を入力</CardTitle>
+            <CardDescription>
+              1 行に 1 件ずつ入力してください。複数行をまとめて変換できます（最大 {MAX_LINES} 行）。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  run();
+                }
+              }}
+              placeholder={"NM_002253.2:c.889G>A\nNP_443086.1:p.Asp509Glyfs\nKDR:c.889G>A"}
+              className="min-h-40 font-mono text-sm"
+              spellCheck={false}
+              aria-label="変異の位置情報"
+            />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-xs text-muted-foreground">入力例:</span>
+              {EXAMPLES.map((ex) => (
+                <Button key={ex.value} variant="outline" size="xs" onClick={() => addExample(ex.value)}>
+                  <span className="text-muted-foreground">{ex.label}</span>
+                  <span className="font-mono">{ex.value}</span>
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button size="lg" onClick={run} disabled={!lines.length || loading}>
+                {loading ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <ArrowRightLeft data-icon="inline-start" />}
+                {loading ? "変換中…" : `hg38 ゲノム位置に変換${lines.length > 1 ? `（${lines.length} 件）` : ""}`}
+              </Button>
+              <Button
+                variant="ghost"
+                size="lg"
+                onClick={() => {
+                  setText("");
+                  setResults(null);
+                  setError(null);
+                }}
+                disabled={loading || (!text && !results)}
+              >
+                <Eraser data-icon="inline-start" />
+                クリア
+              </Button>
+              <span className="text-xs text-muted-foreground">Ctrl / ⌘ + Enter でも変換できます</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <FormatGuide />
+      </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <OctagonX />
+          <AlertTitle>変換に失敗しました</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {loading && !results && (
+        <div className="space-y-3" aria-hidden>
+          {lines.slice(0, 3).map((l, i) => (
+            <div key={i} className="h-40 animate-pulse rounded-xl border bg-card" />
+          ))}
+          <p className="text-center text-sm text-muted-foreground">
+            初回は転写産物データの読み込みに数秒かかります
+          </p>
+        </div>
+      )}
+
+      {results && counts && (
+        <section className={loading ? "space-y-4 opacity-60 transition-opacity" : "space-y-4"} aria-live="polite">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">変換結果</h2>
+              <p className="text-sm text-muted-foreground">
+                {results.length} 件中 成功 {counts.ok} / 要確認 {counts.warning} / エラー {counts.error}
+              </p>
+            </div>
+            <Button variant="outline" onClick={downloadCsv}>
+              <Download data-icon="inline-start" />
+              CSV をダウンロード
+            </Button>
+          </div>
+          {results.map((r, i) => (
+            <ResultCard key={`${i}-${r.input}`} result={r} />
+          ))}
+        </section>
+      )}
+
+      {!results && !loading && (
+        <div className="rounded-xl border border-dashed bg-card/50 px-6 py-10 text-center text-sm text-muted-foreground">
+          変換結果がここに表示されます。上の入力例をクリックすると試せます。
+        </div>
+      )}
+
+      <Cautions />
+
+      <footer className="border-t pt-4 text-xs leading-relaxed text-muted-foreground">
+        データ: UCSC Genome Browser hg38 の NCBI RefSeq アライメント（現行版と旧バージョン）
+        {meta ? `／${meta.mane}／転写産物アライメント ${meta.transcripts.toLocaleString()} 件（${new Date(meta.builtAt).toLocaleDateString("ja-JP")} 取得）` : ""}
+        。参照配列の照合には UCSC API（予備に Ensembl REST）、hg19 → hg38 変換には Ensembl REST を使います。
+        変換結果は参考情報です。依頼書へ記入する前に、必ずゲノムブラウザで目的の変異であることを確認してください。
+      </footer>
+    </div>
+  );
+}
+
+function FormatGuide() {
+  const rows = [
+    { no: "1", title: "ゲノム位置", ex: ["hg38, chr1:195507262", "hg19 chr7:55259515 T>G", "NC_000004.12:g.55113391C>T"] },
+    { no: "2", title: "スプライシング型指定の c. 表記", ex: ["NM_002253.2:c.889G>A", "NM_002253.2, c.889G>A", "NM_000546.6:c.375+1G>A"] },
+    { no: "3", title: "スプライシング型指定の p. 表記", ex: ["NP_443086.1:p.Asp509Glyfs", "NP_004976.2:p.G12D"] },
+    { no: "4", title: "スプライシング型不明（遺伝子名）", ex: ["KDR:c.889G>A", "EGFR p.Leu858Arg"] },
+  ];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>対応している入力形式</CardTitle>
+        <CardDescription>
+          形式 2〜4 は hg38 のゲノム位置（形式 1）に変換します。形式 1 は hg38 上の位置の確認と、重なる転写産物の c. 表記を表示します。
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ol className="space-y-3">
+          {rows.map((r) => (
+            <li key={r.no} className="flex gap-3">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                {r.no}
+              </span>
+              <div className="min-w-0">
+                <div className="text-sm font-medium">{r.title}</div>
+                <div className="mt-0.5 flex flex-wrap gap-x-3 font-mono text-xs text-muted-foreground">
+                  {r.ex.map((e) => (
+                    <span key={e}>{e}</span>
+                  ))}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Cautions() {
+  const items = [
+    "NM_ 番号（スプライシング型）が違うとゲノム位置が変わることがあります。候補が複数ある場合は、お手元の情報と矛盾がないか確認してください。",
+    "得られた位置は、UCSC Genome Browser などで同じリファレンス（hg38）を開き、SNP・ClinVar などの情報が元の変異と一致するか確認してください。",
+    "古くから知られる変異は、シグナル配列を除いた成熟型タンパク質の番号で表記されていることがあります。その場合は、シグナル配列を含むコード領域上の番号に直してから入力してください。",
+    "2 塩基以上の欠失は、範囲内のどの位置を指定しても構いません。依頼書の特記事項欄に欠失の内容を記入してください。",
+    "NGS 法で確認できるのは 1〜20 塩基程度の小さな変異までです。PMS2・BMPR1A・SDHD・CHEK2・NF1 などは相同領域があり、受け入れが難しい場合があります。",
+  ];
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>位置を指定するときの注意</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+          {items.map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
