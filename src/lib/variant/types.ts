@@ -70,6 +70,17 @@ export interface Transcript {
   hist: boolean;
   mane: string;
   mm: number;
+  /**
+   * Set when this version has no UCSC alignment and was placed by aligning its NCBI
+   * sequence to another version (`from`) that does. Only shared stretches are mapped.
+   */
+  bridge?: {
+    from: string;
+    mismatches: number;
+    identicalCds: boolean;
+    /** 1-based transcript positions bordering stretches that did not align to the genome exons */
+    edges: number[];
+  };
 }
 
 export interface SnvCandidate {

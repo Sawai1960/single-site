@@ -9,6 +9,12 @@ export class MappingError extends Error {}
 export const MAX_FLANK = 100000;
 
 /**
+ * For bridged transcripts, positions this close to a stretch that did not align are refused:
+ * bases next to a junction between versions can match the wrong exon by chance.
+ */
+const BRIDGE_EDGE_GUARD = 10;
+
+/**
  * c. position (without intronic offset) → 1-based transcript coordinate.
  * May return < 1 (upstream of the transcript) or > len (downstream).
  */
@@ -54,6 +60,11 @@ function findBlock(t: Transcript, tx: number) {
 /** 1-based transcript coordinate → 1-based genomic coordinate (+ strand) */
 export function txToGenome(t: Transcript, tx: number): number {
   const b = findBlock(t, tx);
+  if (!b && t.bridge) {
+    throw new MappingError(
+      `${t.acc} の転写産物位置 ${tx} は、${t.bridge.from} と配列が異なる部分にあるため、hg38 の位置を計算できません`,
+    );
+  }
   if (!b) {
     throw new MappingError(
       `${t.acc} の転写産物位置 ${tx} はゲノムにアライメントされていません（転写産物配列とゲノム配列の差異領域）`,
@@ -61,6 +72,28 @@ export function txToGenome(t: Transcript, tx: number): number {
   }
   const g0 = t.strand === "+" ? b.ts + b.off : b.ts + b.size - 1 - b.off;
   return g0 + 1;
+}
+
+/** Genomic gaps shorter than this between consecutive blocks are indels, not introns. */
+const MIN_INTRON = 30;
+
+/**
+ * Size of a transcript-vs-genome indel within reach of `tx` (where the gap could be placed
+ * elsewhere in a repeat), or 0. Exon–intron junctions are not counted.
+ */
+function nearbyAlignmentIndel(t: Transcript, tx: number): number {
+  const p0 = tx - 1;
+  for (let i = 0; i + 1 < t.blocks.length; i++) {
+    const [q1, g1, s1] = t.blocks[i];
+    const [q2, g2, s2] = t.blocks[i + 1];
+    const txGap = q2 - (q1 + s1);
+    const gGap = t.strand === "+" ? g2 - (g1 + s1) : g1 - (g2 + s2);
+    if (gGap >= MIN_INTRON || (txGap <= 0 && gGap <= 0)) continue;
+    const size = Math.max(txGap, gGap);
+    const reach = Math.max(BRIDGE_EDGE_GUARD, size);
+    if (p0 >= q1 + s1 - reach && p0 < q2 + reach) return size;
+  }
+  return 0;
 }
 
 export interface MappedPos {
@@ -76,6 +109,13 @@ export function cPosToGenome(t: Transcript, p: CPos): MappedPos {
   const lastAligned = last[0] + last[2];
   if (tx < firstAligned || tx > lastAligned) {
     const upstream = tx < firstAligned;
+    // A bridged version's unaligned ends are where it differs from the aligned version;
+    // their genomic layout is unknown, so extending across them would be a guess.
+    if (t.bridge && (upstream ? firstAligned > 1 : lastAligned < t.len)) {
+      throw new MappingError(
+        `${formatCPos(p)} は、${t.acc} のうち ${t.bridge.from} と配列が異なる${upstream ? " 5' " : " 3' "}側にあるため、hg38 の位置を計算できません`,
+      );
+    }
     const edge = txToGenome(t, upstream ? firstAligned : lastAligned);
     const dist = upstream ? firstAligned - tx : tx - lastAligned;
     const dir = (upstream ? -1 : 1) * (t.strand === "+" ? 1 : -1);
@@ -87,6 +127,20 @@ export function cPosToGenome(t: Transcript, p: CPos): MappedPos {
     );
     const g0 = edge + dir * dist;
     return { genomic: t.strand === "+" ? g0 + p.offset : g0 - p.offset, warnings };
+  }
+  if (t.bridge && findBlock(t, tx)) {
+    const edge = t.bridge.edges.find((e) => Math.abs(e - tx) <= BRIDGE_EDGE_GUARD);
+    if (edge !== undefined) {
+      throw new MappingError(
+        `${formatCPos(p)} は、${t.acc} のうち ${t.bridge.from} の hg38 エクソンと配列が異なる部分との境界から ${BRIDGE_EDGE_GUARD} 塩基以内にあるため、位置を確定できません`,
+      );
+    }
+  }
+  const indel = nearbyAlignmentIndel(t, tx);
+  if (indel) {
+    warnings.push(
+      `${formatCPos(p)} の近くで ${t.acc} と hg38 の配列に ${indel} 塩基の挿入・欠失の差があります。反復配列の中では、データベースによって位置が最大 ${indel} 塩基ずれることがあります`,
+    );
   }
   const g = txToGenome(t, tx);
   if (!p.offset) return { genomic: g, warnings };

@@ -11,7 +11,8 @@ import {
   sortTranscripts,
   type RefSeqIndex,
 } from "./refseq";
-import { getSequence, liftHg19ToHg38 } from "./remote";
+import { bridgeTranscript } from "./bridge";
+import { getRefSeqRecord, getSequence, liftHg19ToHg38 } from "./remote";
 import type {
   ConversionResult,
   FormatNo,
@@ -79,6 +80,14 @@ function duplicationWarning(idx: RefSeqIndex, t: Transcript): string | undefined
 function transcriptWarnings(idx: RefSeqIndex, t: Transcript): string[] {
   const w: string[] = [];
   if (t.hist) w.push(`${t.acc} は旧バージョンの転写産物です。現行版とゲノム位置が異なることがあります`);
+  if (t.bridge) {
+    w.push(
+      `${t.acc} の位置は、NCBI の配列を ${t.bridge.from} の hg38 アライメントと照合して求めました` +
+        (t.bridge.identicalCds
+          ? "（コード領域の番号とゲノム位置は同一です）"
+          : `（コード領域の配列または番号が ${t.bridge.from} と異なります。両者で配列が同じ部分だけを計算しています）`),
+    );
+  }
   const aligned = t.blocks.reduce((s, b) => s + b[2], 0);
   if (t.mm > 0 || aligned < t.len) {
     w.push(`${t.acc} の配列は hg38 ゲノム配列と完全には一致しません（不一致・未整列の塩基があります）`);
@@ -150,6 +159,42 @@ export function resolveTarget(idx: RefSeqIndex, target: QueryTarget): Resolved {
     return { transcripts: sortTranscripts(syn), notes, fallback: true };
   }
   throw new MappingError(`遺伝子名 ${target.symbol} は RefSeq（NM_）データに見つかりません`);
+}
+
+/**
+ * resolveTarget, but when the requested NM_/NP_ version has no UCSC alignment, place that
+ * exact version via its NCBI sequence instead of silently substituting another version.
+ * Falls back to the substitute (with a note) if NCBI cannot be used.
+ */
+export async function resolveTargetWithNcbi(idx: RefSeqIndex, target: QueryTarget): Promise<Resolved> {
+  const r = resolveTarget(idx, target);
+  if (!r.fallback || target.type === "gene" || !target.acc.includes(".")) return r;
+  try {
+    if (target.type === "transcript") {
+      const bridged = await Promise.all(r.transcripts.map((t) => bridgeTranscript(target.acc, t)));
+      return {
+        transcripts: bridged,
+        notes: [
+          `${target.acc} は UCSC の hg38 アライメントデータに無いため、NCBI から ${target.acc} の配列を取得し、${bridged[0].bridge!.from} と照合して位置を求めました`,
+        ],
+        fallback: false,
+      };
+    }
+    const np = await getRefSeqRecord(target.acc);
+    if (!np.mrna) throw new Error(`${target.acc} をコードする NM_ が NCBI のレコードにありません`);
+    let ts = idx.byAcc.get(np.mrna);
+    const notes = [`NCBI のレコードでは ${target.acc} は ${np.mrna} がコードするタンパク質です`];
+    if (!ts) {
+      const subs = latestPerBase(idx.byBase.get(accBase(np.mrna)) ?? []);
+      if (!subs.length) throw new Error(`${np.mrna} の転写産物が hg38 のデータにありません`);
+      ts = await Promise.all(subs.map((t) => bridgeTranscript(np.mrna!, t)));
+      notes.push(`${np.mrna} は UCSC の hg38 アライメントデータに無いため、NCBI の配列を ${ts[0].bridge!.from} と照合して位置を求めました`);
+    }
+    return { transcripts: sortTranscripts(ts.map((t) => ({ ...t, prot: target.acc }))), notes, fallback: false };
+  } catch (e) {
+    const why = e instanceof Error ? e.message : String(e);
+    return { ...r, notes: [...r.notes, `NCBI の配列で照合できなかったため（${why}）、別バージョンで計算した結果を表示しています`] };
+  }
 }
 
 function checkGeneLabel(target: QueryTarget, ts: Transcript[], notes: string[]) {
@@ -533,7 +578,7 @@ export async function convertOne(raw: string): Promise<ConversionResult> {
       fallback = !q.assemblyGiven;
     } else {
       format = q.target.type === "gene" ? 4 : q.kind === "cdna" ? 2 : 3;
-      const resolved = resolveTarget(idx, q.target);
+      const resolved = await resolveTargetWithNcbi(idx, q.target);
       notes.push(...resolved.notes);
       fallback = resolved.fallback;
       checkGeneLabel(q.target, resolved.transcripts, notes);

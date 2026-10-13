@@ -26,6 +26,7 @@ vi.mock("../src/lib/variant/remote", async (importOriginal) => {
   return {
     getSequence: replay("seq", actual.getSequence),
     liftHg19ToHg38: replay("lift", actual.liftHg19ToHg38),
+    getRefSeqRecord: replay("refseq", actual.getRefSeqRecord),
   };
 });
 
@@ -146,6 +147,51 @@ describe("照合と注意表示", () => {
     const r = await convertOne("hg38 chr17:7675993 C>T");
     const tp53 = r.candidates.find((c) => c.transcript === "NM_000546.6");
     expect(tp53?.hgvsC).toBe("NM_000546.6:c.375+1G>A");
+  });
+});
+
+describe("UCSC にアライメントの無いバージョン（NCBI の配列で照合）", () => {
+  // NM_052892.5（PKD1L2）は UCSC のデータに無く、.4 とは 5' 側の配列と番号が違う。
+  // 以前は .4 で代わりに計算して 9 塩基ずれていた（validation/ANALYSIS.md）
+  it("NM_052892.5:c.4853G>A を ClinVar と同じ chr16:81148249 にする", async () => {
+    const r = await convertOne("NM_052892.5:c.4853G>A");
+    expect(r.status).toBe("ok");
+    const c = r.candidates[0];
+    expect(c).toMatchObject({ transcript: "NM_052892.5", chrom: "chr16", start: 81148249 });
+    expect(c.refCheck?.ok).toBe(true);
+    expect(r.notes.join()).toContain("NCBI から NM_052892.5 の配列を取得");
+    expect(c.warnings.join()).toContain("NM_052892.4 の hg38 アライメントと照合");
+  });
+
+  it("NM_005396.5:c.805G>C（PNLIPRP2、以前は 3 塩基ずれていた）", async () => {
+    const r = await convertOne("NM_005396.5:c.805G>C");
+    expect(r.candidates[0]).toMatchObject({ chrom: "chr10", start: 116631345 });
+  });
+
+  it("別バージョンに無い 5' 側の位置はエラーにする（推測しない）", async () => {
+    const r = await convertOne("NM_052892.5:c.425C>T");
+    expect(r.status).toBe("error");
+    expect(r.message).toContain("配列が異なる 5' 側");
+  });
+
+  it("配列が異なる部分との境界付近はエラーにする", async () => {
+    const r = await convertOne("NM_052892.5:c.907A>C");
+    expect(r.status).toBe("error");
+    expect(r.message).toContain("境界から 10 塩基以内");
+  });
+
+  it("NP_ の旧版も、NCBI のレコードからコードする NM_ を求めて計算する", async () => {
+    const r = await convertOne("NP_443124.4:p.Arg1618Gln");
+    expect(r.notes.join()).toContain("NM_052892.5 がコードするタンパク質");
+    const c = r.candidates[0];
+    expect(c.protein).toBe("NP_443124.4");
+    expect(c.start).toBeLessThanOrEqual(81148249);
+    expect(c.end).toBeGreaterThanOrEqual(81148249);
+  });
+
+  it("転写産物と hg38 の間の挿入・欠失の近くでは位置がずれうることを注意する（ORAI1）", async () => {
+    const r = await convertOne("NM_032790.4:c.131C>T");
+    expect(r.candidates[0].warnings.join()).toContain("5 塩基の挿入・欠失の差");
   });
 });
 

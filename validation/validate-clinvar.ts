@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { convertOne, mapCdna, mapProtein, resolveTarget } from "../src/lib/variant/convert";
 import { revComp, translateCodon } from "../src/lib/variant/codon";
+import { bridgeTranscript } from "../src/lib/variant/bridge";
 import { genomeToC, MappingError } from "../src/lib/variant/mapping";
 import { parseQuery } from "../src/lib/variant/parse";
 import { accBase, getIndex } from "../src/lib/variant/refseq";
@@ -158,14 +159,22 @@ async function main() {
     } catch {
       /* not found at all */
     }
-    // When the exact version is missing the tool falls back to another version (with a warning);
-    // measure how often that fallback still lands on the right position.
+    // When the exact version is missing the tool aligns its NCBI sequence to a version UCSC has
+    // aligned (same path as the web API); measure that separately.
     const fallback = !exact;
     const keyM = fallback ? `f2fb:${k.category}` : key2;
-    const labelM = fallback ? "形式2（旧版がデータに無く、別バージョンで代替計算）" : label2;
-    const ts = exact ? pickTranscripts(exact, k.chrom) : resolved;
+    const labelM = fallback ? "形式2（旧版がデータに無く、NCBI の配列で照合して計算）" : label2;
+    let ts = exact ? pickTranscripts(exact, k.chrom) : resolved;
     if (exact && !ts.length) record(key2, label2, "skip", "NM_ のアライメントが別の染色体のみ");
     if (fallback && !ts.length) record(keyM, labelM, "skip", "どのバージョンの NM_ もデータに無い");
+    if (fallback && ts.length) {
+      try {
+        ts = await Promise.all(ts.map((t) => bridgeTranscript(k.nm, t)));
+      } catch (e) {
+        record(keyM, labelM, "skip", `NCBI の配列で照合できない（${(e as Error).message.replace(/[NX][MP]_\d+\.\d+/g, "NM_")}）`);
+        ts = [];
+      }
+    }
 
     // A transcript can align to several loci (multi-copy genes, PAR). The tool lists every
     // alignment as a candidate, so judge the case by the candidate closest to ClinVar.
@@ -184,7 +193,7 @@ async function main() {
     }
     mappedAll.sort((a, b) => Math.abs(a.m.lo - k.start) - Math.abs(b.m.lo - k.start));
     for (const { t, m } of mappedAll.slice(0, 1)) {
-      const via = fallback ? `（${t.acc} で代替）` : "";
+      const via = t.bridge ? `（NCBI 配列を ${t.bridge.from} と照合）` : "";
       if (isSub) {
         const ok = m.lo === k.start && m.hi === k.start;
         const refOk = (t.strand === "+" ? q.refAllele : revComp(q.refAllele!)) === k.refVcf;
@@ -373,10 +382,8 @@ function writeReport(source: string, total: number, shifted: number, secs: numbe
   for (const k of order) {
     const s = checks[k];
     const n = s.pass + s.fail;
-    if (!k.startsWith("f2fb:")) {
-      totalPass += s.pass;
-      totalFail += s.fail;
-    }
+    totalPass += s.pass;
+    totalFail += s.fail;
     const cat = k.split(":").slice(1).join(":") || "—";
     lines.push(`| ${s.label} | ${cat} | ${s.pass} | ${s.fail} | ${s.skip} | ${n ? ((100 * s.pass) / n).toFixed(2) : "—"}% |`);
   }
@@ -391,7 +398,7 @@ function writeReport(source: string, total: number, shifted: number, secs: numbe
   );
   if (order.some((k) => k.startsWith("f2fb:"))) {
     lines.push(
-      "「形式2（旧版がデータに無く、別バージョンで代替計算）」は、入力された旧バージョンの NM_ が UCSC のデータに無いため、本ツールが同じ番号の別バージョンで計算した場合に、ClinVar の正解位置と一致した割合です。バージョン間で 5'UTR やエクソン構造が変わると位置がずれるのは仕様上避けられない（本ツールは代替時に警告を出す）ため、合計には含めていません。",
+      "「形式2（旧版がデータに無く、NCBI の配列で照合して計算）」は、入力された NM_ のバージョンが UCSC のデータに無い場合です。本ツールは NCBI からそのバージョンの配列を取得し、UCSC がアライメントした別バージョンと配列を照合して位置を求めます（Web 画面と同じ処理）。",
       "",
     );
   }
