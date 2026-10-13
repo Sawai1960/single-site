@@ -17,6 +17,8 @@
 - **リファレンス照合**: 入力した参照塩基やアミノ酸が hg38 と一致するかを確認します。不一致の候補は末尾に分けて表示します。
 - **旧バージョンの NM 番号**: `NM_002253.2` のような旧版も、UCSC の RefSeq Historical アライメントを使って変換します。
 - **UCSC に無いバージョン**: UCSC がアライメントしていない NM_/NP_ のバージョン（UCSC より新しい版も含む）は、NCBI からその版の配列を取得します。UCSC にある別の版と配列を照合し、両者で配列が同じ部分だけ位置を求めます。配列が違う部分や、その境界から 10 塩基以内は、推測せずにエラーにします。
+- **バージョン番号なしの NM_/NP_**: `NM_004333:c.100G>A` のようにバージョンが無い場合は、全バージョンで計算して位置を比べます（FoundationOne の報告書など、NM 番号にバージョンが書かれていないことがあるため）。UCSC のデータに無い途中の版は NCBI の配列で補います。すべて同じ位置なら「変換成功」、版によって位置が違えば「要確認」とし、版ごとの位置を表で示します。
+- **外部データベースとの照合**: 各候補について、UCSC のアライメントを使わない NCBI Variation Services と Ensembl VEP（RefSeq 転写産物）で同じ変換を行い、本ツールの結果と並べて「一致／不一致／確認不可」を示します。c. → hg38（順変換）と hg38 → c.（逆変換）の両方向を照合します。不一致の候補があれば結果を「要確認」にします。
 - **スプライシング型不明（形式 4）**: 遺伝子の全転写産物で計算し、MANE Select を先頭に表示します。ゲノム位置が転写産物によって何通りに分かれるかも示します。遺伝子の別名（例: `VEGFR2` → `KDR`）にも対応します。
 - **形式 1 の確認**: hg38 の参照塩基と、その位置に重なる転写産物の c. 表記を表示します。hg19 の位置は Ensembl の assembly mapping で hg38 に変換します。
 - **依頼書向けの注意表示**: 欠失の範囲指定、20 塩基を超える変異、相同領域のある遺伝子（PMS2・BMPR1A・SDHD・CHEK2・NF1）、シグナル配列の番号表記について注意を表示します。
@@ -57,8 +59,15 @@ npm start
 - **UCSC に無いバージョン**: NCBI E-utilities（efetch）でその版の配列と CDS を取得します。UCSC にある同じ番号の版の mRNA 配列と照合し、その版の hg38 アライメントに重ねて位置を求めます。NP_ の場合は、NCBI のレコードからコードする NM_ を求めます。環境変数 `NCBI_API_KEY` を設定すると、NCBI へのアクセス上限が 3 回/秒から 10 回/秒になります（任意）。
 - **参照配列**: 照合用の塩基は UCSC API から取得します（取得できない場合は Ensembl REST）。
 - **hg19 → hg38**: Ensembl REST の assembly mapping を使います。
+- **外部データベースとの照合**（`/api/verify`、結果の表示後に非同期で実行）:
+  - NCBI 順変換: `hgvs/{c.}/contextuals` で転写産物上の SPDI を求め、`spdi/{SPDI}/all_equivalent_contextual` で hg38（NC_）上の同じ変異を得ます。
+  - NCBI 逆変換: hg38 の各塩基を SPDI にして `all_equivalent_contextual` で転写産物上の位置を得て、NCBI のレコードの CDS 範囲から c. 位置に直します。
+  - Ensembl: VEP の `hgvs`（順変換）と `region`（逆変換、`hgvs=1`）を `refseq=1` で呼びます。
+  - 欠失・重複・挿入は書き方（左寄せ・右寄せ、dup と ins）が違っても、hg38 の参照配列に適用した結果が同じなら一致とします。
+  - NCBI はイントロン内の変異に対応していません。逆変換で返すのは現行版の NM_ だけです。Ensembl は現行版の NM_ しか持っておらず、応答に数十秒かかったり一時的なエラーを返したりします（自動で再試行します）。照合できない場合は理由つきで「確認不可」と表示します。
+  - 画面では、先頭 5 件の結果を自動で照合します。それ以降は候補ごとの「照合する」から実行します。
 
-座標計算はサーバー内で行います。インターネット接続が必要なのは、参照塩基の照合、hg19 からの変換、UCSC に無いバージョンの配列取得だけです。接続できない場合も位置は計算されますが、照合は行われません。UCSC に無いバージョンは、NCBI に接続できないと別の版で計算し、その旨を表示します。
+座標計算はサーバー内で行います。インターネット接続が必要なのは、参照塩基の照合、hg19 からの変換、UCSC に無いバージョンの配列取得、外部データベースとの照合だけです。接続できない場合も位置は計算されますが、照合は行われません。UCSC に無いバージョンは、NCBI に接続できないと別の版で計算し、その旨を表示します。
 
 ## 正しさの検証
 
@@ -88,6 +97,8 @@ ClinVar の `variant_summary.txt.gz`（GRCh38）から、NM_ の c. 表記と hg
 - 本ツールのデータにある旧版では、3,689 / 3,781 件（97.57%）が一致しました。不一致 92 件に座標計算の誤りはありませんでした。79 件は GAGE・GSTT2 など、ほぼ同じ配列のコピーを持つ遺伝子で、UCSC が NCBI とは別のコピーに対応付けています。現在はこの 79 件すべてに分節重複の注意が出ます。
 - データに無い版は、NCBI の配列で照合して 659 / 703 件（93.7%）が一致しました。以前の方法（別の版で代わりに計算）では 514 / 704 件（73.0%）でした。残りは、計算を断るエラー（37 件）、注意付きの結果（6 件）、ClinVar の誤り（1 件）です。**注意なしに誤った位置を出したケースはありませんでした。**
 
+外部データベースとの照合そのものも検証しました（[`report-external.md`](validation/report-external.md)）。旧版サンプルから 536 件を選んで照合したところ、NCBI が本ツールの正しい結果を「不一致」とした誤警報は 1 件だけでした（ORAI1、もともと注意が出るケース）。一方、配列が同一の重複コピー（GSTT2 など）の取り違えは、NCBI も同じコピーを選ぶため外部照合では検出できません。旧版やイントロン内の変異は「確認不可」になりやすいです。詳しくは [`validation/ANALYSIS.md`](validation/ANALYSIS.md) を参照してください。
+
 ClinVar のサンプルは、次のコマンドで最新版から取り直せます（約 450 MB をストリーミングで読み込みます。保存はしません）。
 
 ```bash
@@ -104,18 +115,22 @@ npx tsx validation/validate-clinvar.ts \
 node validation/fetch-clinvar.mjs --seed 4242 --historical-only --out validation/clinvar-sample-historical.tsv
 npx tsx validation/validate-clinvar.ts \
   --sample validation/clinvar-sample-historical.tsv --report validation/report-historical.md
+
+# 外部データベースとの照合の検証（NCBI のみなら --ensembl を外す。30 分ほどかかります）
+npx tsx validation/validate-external.ts --ensembl
 ```
 
 ### 2. 回帰テスト（`npm test`）
 
-`tests/` に 114 件のテストがあります。
+`tests/` に 134 件のテストがあります。
 
 - `parse.test.ts`: 色々な書き方の入力（全角文字、ClinVar 形式、1 文字・3 文字のアミノ酸記号、エラー入力）の解析
 - `mapping.test.ts`: ClinVar の正解値を使った座標計算（両方の鎖、イントロン、UTR、欠失・挿入、遠い上流、修正した不具合の再発防止）
 - `seqalign.test.ts`: バージョン間の配列照合（延長、置換、欠失、ゲノムのアライメントとの合成）
-- `convert.test.ts`: Web API と同じ処理全体（リファレンス照合、注意表示、複数コピーの遺伝子、UCSC に無いバージョン、候補の並び順、hg19 からの変換、エラー表示）
+- `convert.test.ts`: Web API と同じ処理全体（リファレンス照合、注意表示、複数コピーの遺伝子、UCSC に無いバージョン、バージョン番号なしの全版比較、候補の並び順、hg19 からの変換、エラー表示）
+- `verify.test.ts`: NCBI・Ensembl との照合（一致、位置をずらすと不一致になること、重複コピーの検出、イントロン、dup と ins の等価判定、Ensembl に無い旧版）
 
-外部 API の応答は `tests/fixtures/remote.json` に保存したものを再生します。そのため、テストはオフラインでも同じ結果になります。テストケースを追加したときは、`RECORD_FIXTURES=1 npm test` で応答を記録し直してください。
+外部 API の応答は `tests/fixtures/remote.json` と `tests/fixtures/external.json` に保存したものを再生します。そのため、テストはオフラインでも同じ結果になります。テストケースを追加したときは、`RECORD_FIXTURES=1 npm test` で応答を記録し直してください。
 
 ## API
 
@@ -123,6 +138,14 @@ npx tsx validation/validate-clinvar.ts \
 curl -X POST http://localhost:43127/api/convert \
   -H 'Content-Type: application/json' \
   -d '{"queries": ["NM_002253.2:c.889G>A", "KRAS p.G12D"]}'
+```
+
+`/api/convert` の各候補の `verify` を `/api/verify` に渡すと、外部データベースと照合します（`source` は `ncbi` か `ensembl`）。
+
+```bash
+curl -X POST http://localhost:43127/api/verify \
+  -H 'Content-Type: application/json' \
+  -d '{"source": "ncbi", "items": [{"transcript": "NM_002253.4", "chrom": "chr4", "plan": <候補の verify>}]}'
 ```
 
 ## 注意
