@@ -1,11 +1,8 @@
-import { revComp } from "./codon";
-import { getRefSeqRecord, getSequence } from "./remote";
+import { getRefSeqRecord } from "./remote";
 import { alignVersions, type AlignedBlock } from "./seqalign";
 import type { Transcript } from "./types";
 
 type Block = [number, number, number];
-
-const WINDOW_GAP = 20000;
 
 /**
  * Re-expresses a genome alignment (`blocks`, in the coordinates of sequence b) in the
@@ -26,33 +23,6 @@ export function composeBlocks(aln: AlignedBlock[], blocks: Block[], strand: "+" 
   return out.sort((p, q) => p[0] - q[0]);
 }
 
-/**
- * The hg38 sequence of `t`'s aligned exons, concatenated in transcript orientation, with
- * blocks mapping offsets in that string back to the genome. Using the genome itself (rather
- * than the other version's mRNA) keeps differences between that mRNA and hg38 out of the result.
- */
-async function splicedGenome(t: Transcript): Promise<{ seq: string; blocks: Block[] }> {
-  const byGenome = [...t.blocks].sort((a, b) => a[1] - b[1]);
-  const windows: [number, number][] = [];
-  for (const [, gs, size] of byGenome) {
-    const last = windows[windows.length - 1];
-    if (last && gs - last[1] <= WINDOW_GAP) last[1] = Math.max(last[1], gs + size);
-    else windows.push([gs, gs + size]);
-  }
-  const loaded = await Promise.all(windows.map(async ([lo, hi]) => ({ lo, hi, seq: await getSequence(t.chrom, lo + 1, hi) })));
-  const parts: string[] = [];
-  const blocks: Block[] = [];
-  let offset = 0;
-  for (const [, gs, size] of t.blocks) {
-    const w = loaded.find((x) => x.lo <= gs && gs + size <= x.hi)!;
-    const s = w.seq.slice(gs - w.lo, gs - w.lo + size);
-    parts.push(t.strand === "+" ? s : revComp(s));
-    blocks.push([offset, gs, size]);
-    offset += size;
-  }
-  return { seq: parts.join(""), blocks };
-}
-
 function genomicOf(blocks: Block[], strand: "+" | "-", tx0: number): number | undefined {
   for (const [qs, gs, size] of blocks) {
     if (tx0 >= qs && tx0 < qs + size) return strand === "+" ? gs + (tx0 - qs) : gs + size - 1 - (tx0 - qs);
@@ -61,15 +31,20 @@ function genomicOf(blocks: Block[], strand: "+" | "-", tx0: number): number | un
 }
 
 /**
- * Builds a Transcript for an NM_ version that UCSC has not aligned: its NCBI sequence is
- * aligned to the hg38 exons of a version (`sub`) that UCSC has aligned. Stretches where the
- * input differs (new exons, changed UTRs, indels) stay unaligned and cannot be mapped.
+ * Builds a Transcript for an NM_ version that UCSC has not aligned, by aligning its NCBI
+ * sequence to the mRNA of a version (`sub`) that UCSC has aligned and reusing that
+ * alignment's exon structure. Versions usually differ far less from each other than from
+ * hg38 (e.g. KIR alleles), so mRNA-to-mRNA is the robust comparison. Stretches where the
+ * versions differ (new exons, changed UTRs, indels) stay unaligned and cannot be mapped.
  */
 export async function bridgeTranscript(acc: string, sub: Transcript): Promise<Transcript> {
-  const [rec, genome] = await Promise.all([getRefSeqRecord(acc), splicedGenome(sub)]);
+  const [rec, subRec] = await Promise.all([getRefSeqRecord(acc), getRefSeqRecord(sub.acc)]);
   if (!rec.cds) throw new Error(`${acc} の CDS 情報が NCBI のレコードにありません`);
-  const aln = alignVersions(rec.seq, genome.seq);
-  const blocks = composeBlocks(aln.blocks, genome.blocks, sub.strand);
+  if (subRec.seq.length !== sub.len) {
+    throw new Error(`${sub.acc} の NCBI 配列長が UCSC のデータと一致しません`);
+  }
+  const aln = alignVersions(rec.seq, subRec.seq);
+  const blocks = composeBlocks(aln.blocks, sub.blocks, sub.strand);
   if (!blocks.length) throw new Error(`${acc} と ${sub.acc} の配列を対応付けられませんでした`);
 
   const edges: number[] = [];
@@ -93,7 +68,7 @@ export async function bridgeTranscript(acc: string, sub: Transcript): Promise<Tr
     blocks,
     hist: false,
     mane: "",
-    mm: aln.mismatches,
+    mm: sub.mm + aln.mismatches,
     bridge: { from: sub.acc, mismatches: aln.mismatches, identicalCds, edges },
   };
 }

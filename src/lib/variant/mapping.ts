@@ -132,7 +132,7 @@ export function cPosToGenome(t: Transcript, p: CPos): MappedPos {
     const edge = t.bridge.edges.find((e) => Math.abs(e - tx) <= BRIDGE_EDGE_GUARD);
     if (edge !== undefined) {
       throw new MappingError(
-        `${formatCPos(p)} は、${t.acc} のうち ${t.bridge.from} の hg38 エクソンと配列が異なる部分との境界から ${BRIDGE_EDGE_GUARD} 塩基以内にあるため、位置を確定できません`,
+        `${formatCPos(p)} は、${t.acc} のうち ${t.bridge.from} と配列が異なる部分との境界から ${BRIDGE_EDGE_GUARD} 塩基以内にあるため、位置を確定できません`,
       );
     }
   }
