@@ -74,7 +74,7 @@ function VersionTable({ rows }: { rows: VersionRow[] }) {
                 </td>
                 <td className="px-3 py-1.5 text-xs whitespace-nowrap">
                   {r.error ? (
-                    <span className="text-muted-foreground">計算できません: {r.error}</span>
+                    <span className="inline-block min-w-48 whitespace-normal text-muted-foreground">計算できません: {r.error}</span>
                   ) : r.same ? (
                     "同じ位置"
                   ) : (
