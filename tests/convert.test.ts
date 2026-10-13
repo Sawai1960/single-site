@@ -66,6 +66,62 @@ describe("資料の入力例", () => {
   });
 });
 
+describe("バージョン番号なしの NM_/NP_", () => {
+  it("KDR NM_002253 は全バージョンで同じ位置なので変換成功", async () => {
+    const r = await convertOne("NM_002253:c.889G>A");
+    expect(r.status).toBe("ok");
+    expect(r.versions?.map((v) => v.transcript)).toEqual(["NM_002253.4", "NM_002253.3", "NM_002253.2", "NM_002253.1"]);
+    expect(r.versions?.every((v) => v.same)).toBe(true);
+    expect(r.notes[0]).toContain("どのバージョンでも同じゲノム位置");
+  });
+
+  it("BRAF NM_004333 は .1 だけ位置が 3 塩基ずれるので要確認", async () => {
+    const r = await convertOne("NM_004333:c.100G>A");
+    expect(r.status).toBe("warning");
+    expect(r.candidates[0].transcript).toBe("NM_004333.6");
+    const v1 = r.versions?.find((v) => v.transcript === "NM_004333.1");
+    expect(v1).toMatchObject({ same: false, loci: [{ chrom: "chr7", start: 140924601 }] });
+    expect(r.notes[0]).toContain("2 通りに分かれました");
+  });
+
+  it("ARID1A NM_006015 は UCSC に無い .2 を NCBI の配列で補って比べる", async () => {
+    const r = await convertOne("NM_006015:c.100");
+    const v2 = r.versions?.find((v) => v.transcript === "NM_006015.2");
+    expect(v2).toMatchObject({ bridged: true, same: true });
+    expect(r.versions).toHaveLength(6);
+  });
+
+  it("NP_004976（KRAS）は NP_/NM_ の組み合わせごとに比べる", async () => {
+    const r = await convertOne("NP_004976:p.Gly12Asp");
+    expect(r.status).toBe("ok");
+    expect(r.versions?.length).toBeGreaterThan(1);
+    expect(r.notes[0]).toContain("NP_ と NM_ の組み合わせ");
+  });
+});
+
+describe("外部照合用のデータ", () => {
+  it("c. 置換は HGVS と本ツールのゲノム上の編集を持つ", async () => {
+    const r = await convertOne("NM_002253.2:c.889G>A");
+    expect(r.candidates[0].verify).toEqual({
+      forward: [
+        {
+          hgvs: "NM_002253.2:c.889G>A",
+          edit: { from: 55113391, to: 55113391, alt: "T" },
+          at: { hgvs: "NM_002253.2:c.889", from: 55113391, to: 55113391 },
+        },
+      ],
+      points: [{ pos: 55113391, c: "c.889" }],
+    });
+  });
+
+  it("形式1 は重なる転写産物ごとに c. 位置を照合する", async () => {
+    const r = await convertOne("hg38, chr4:55113391");
+    const c = r.candidates.find((x) => x.transcript === "NM_002253.4");
+    expect(c?.verify?.points).toEqual([{ pos: 55113391, c: "c.889" }]);
+    expect(c?.verify?.forward[0].hgvs).toBe("NM_002253.4:c.889del");
+  });
+});
+
 describe("形式4: スプライシング型不明", () => {
   it("KDR:c.889G>A は MANE Select を先頭に返す", async () => {
     const r = await convertOne("KDR:c.889G>A");

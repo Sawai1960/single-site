@@ -113,6 +113,60 @@ export interface ResultCandidate {
   snvCandidates?: SnvCandidate[];
   warnings: string[];
   ucscUrl: string;
+  /** What to ask independent databases (NCBI, Ensembl) to cross-check this candidate */
+  verify?: VerifyPlan;
+}
+
+/** Edit on the hg38 + strand: bases from..to (1-based) are replaced by alt; to = from - 1 is a pure insertion. */
+export interface GenomicEdit {
+  from: number;
+  to: number;
+  alt: string;
+}
+
+export interface ForwardCheck {
+  /** HGVS c. sent to the external service */
+  hgvs: string;
+  /** this tool's genomic interpretation of `hgvs` */
+  edit: GenomicEdit;
+  /** position-only form, used when the service rejects the stated reference allele */
+  at: { hgvs: string; from: number; to: number };
+}
+
+export interface VerifyPlan {
+  /** c. → genome */
+  forward: ForwardCheck[];
+  /** genome → c.: the c. position this tool assigns to each genomic base */
+  points: { pos: number; c: string }[];
+}
+
+export type CheckStatus = "match" | "mismatch" | "unavailable";
+
+export interface CheckOutcome {
+  status: CheckStatus;
+  detail: string;
+}
+
+export interface SourceChecks {
+  forward?: CheckOutcome;
+  reverse?: CheckOutcome;
+}
+
+export type VerifySource = "ncbi" | "ensembl";
+
+export interface VersionRow {
+  transcript: string;
+  protein: string;
+  historical: boolean;
+  /** placed via the NCBI sequence because UCSC has no alignment of this version */
+  bridged: boolean;
+  /** the version used for the main candidates */
+  used: boolean;
+  loci: { chrom: string; start: number; end: number }[];
+  refOk?: boolean;
+  error?: string;
+  /** same genomic position(s) as the version used for the main candidates */
+  same?: boolean;
 }
 
 export type FormatNo = 1 | 2 | 3 | 4;
@@ -126,4 +180,6 @@ export interface ConversionResult {
   normalized?: string;
   candidates: ResultCandidate[];
   notes: string[];
+  /** For NM_/NP_ given without a version: the position under every version hg38 data has */
+  versions?: VersionRow[];
 }

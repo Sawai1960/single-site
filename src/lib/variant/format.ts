@@ -19,7 +19,19 @@ function csvCell(v: unknown): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function resultsToCsv(results: ConversionResult[]): string {
+function versionsText(r: ConversionResult): string {
+  if (!r.versions || r.versions.length < 2) return "";
+  const rows = r.versions.map((v) => {
+    const at = v.loci.map((l) => locusText(l.chrom, l.start, l.end)).join("+");
+    return `${v.transcript}=${v.error ? "計算不可" : at}`;
+  });
+  return `バージョン別: ${rows.join("; ")}`;
+}
+
+export function resultsToCsv(
+  results: ConversionResult[],
+  external?: (resultIndex: number, candidateIndex: number) => string,
+): string {
   const header = [
     "入力",
     "入力形式",
@@ -40,15 +52,17 @@ export function resultsToCsv(results: ConversionResult[]): string {
     "g.表記",
     "リファレンス(+鎖)",
     "リファレンス照合",
+    "外部照合",
     "注意事項",
   ];
   const rows: string[][] = [header];
-  for (const r of results) {
+  for (const [ri, r] of results.entries()) {
     if (!r.candidates.length) {
-      rows.push([r.input, r.formatLabel ?? "", STATUS_LABEL[r.status], ...Array(16).fill(""), [r.message, ...r.notes].filter(Boolean).join(" / ")]);
+      rows.push([r.input, r.formatLabel ?? "", STATUS_LABEL[r.status], ...Array(17).fill(""), [r.message, ...r.notes].filter(Boolean).join(" / ")]);
       continue;
     }
-    for (const c of r.candidates) {
+    const versions = versionsText(r);
+    for (const [ci, c] of r.candidates.entries()) {
       rows.push([
         r.input,
         r.formatLabel ?? "",
@@ -69,7 +83,8 @@ export function resultsToCsv(results: ConversionResult[]): string {
         c.hgvsG ?? "",
         c.genomicRef ?? "",
         c.refCheck ? (c.refCheck.ok ? "一致" : `不一致(入力 ${c.refCheck.expected} / hg38 ${c.refCheck.observed})`) : "",
-        [...r.notes, ...c.warnings].join(" / "),
+        external?.(ri, ci) ?? "",
+        [...r.notes, ...(versions ? [versions] : []), ...c.warnings].join(" / "),
       ]);
     }
   }

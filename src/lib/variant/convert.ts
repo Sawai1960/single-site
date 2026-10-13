@@ -16,11 +16,14 @@ import { getRefSeqRecord, getSequence, liftHg19ToHg38 } from "./remote";
 import type {
   ConversionResult,
   FormatNo,
+  ForwardCheck,
   ParsedQuery,
   QueryTarget,
   ResultCandidate,
   SnvCandidate,
   Transcript,
+  VerifyPlan,
+  VersionRow,
 } from "./types";
 
 const HOMOLOGOUS_GENES = new Set(["PMS2", "BMPR1A", "SDHD", "CHEK2", "NF1"]);
@@ -234,6 +237,36 @@ function hgvsGChange(
 type CdnaQuery = Extract<ParsedQuery, { kind: "cdna" }>;
 type ProteinQuery = Extract<ParsedQuery, { kind: "protein" }>;
 
+function positionOnly(acc: string, posText: string, lo: number, hi: number): ForwardCheck {
+  return { hgvs: `${acc}:${posText}del`, edit: { from: lo, to: hi, alt: "" }, at: { hgvs: `${acc}:${posText}`, from: lo, to: hi } };
+}
+
+/** The c. query as this tool places it on hg38, in a form NCBI / Ensembl can be asked about. */
+function cdnaForwardCheck(q: CdnaQuery, t: Transcript, lo: number, hi: number, gRef: string | undefined): ForwardCheck {
+  const posText = formatCPos(q.start) + (q.end !== q.start ? `_${formatCPos(q.end).slice(2)}` : "");
+  const orient = (s: string) => (t.strand === "+" ? s : revComp(s));
+  const fallback = positionOnly(t.acc, posText, lo, hi);
+  const at = fallback.at;
+  const hgvs = `${t.acc}:${posText}${q.change}`;
+  const alt = q.altAllele && /^[ACGT]+$/.test(q.altAllele) ? q.altAllele : undefined;
+  switch (q.varType) {
+    case "substitution":
+      return alt ? { hgvs, edit: { from: lo, to: hi, alt: orient(alt) }, at } : fallback;
+    case "deletion":
+      return { hgvs, edit: { from: lo, to: hi, alt: "" }, at };
+    case "duplication":
+      return gRef ? { hgvs, edit: { from: hi + 1, to: hi, alt: gRef }, at } : fallback;
+    case "insertion":
+      return alt
+        ? { hgvs, edit: { from: hi, to: lo, alt: orient(alt) }, at }
+        : { hgvs: `${t.acc}:${posText}insA`, edit: { from: hi, to: lo, alt: orient("A") }, at };
+    case "delins":
+      return alt ? { hgvs, edit: { from: lo, to: hi, alt: orient(alt) }, at } : fallback;
+    default:
+      return fallback;
+  }
+}
+
 /** c. range → genomic range on hg38 (+ strand, 1-based inclusive). Throws MappingError. */
 export function mapCdna(q: CdnaQuery, t: Transcript): { lo: number; hi: number; warnings: string[] } {
   const a = cPosToGenome(t, q.start);
@@ -334,6 +367,8 @@ async function convertCdna(
     const nc = chromToNC(t.chrom);
     const gPos = lo === hi ? `${lo}` : `${lo}_${hi}`;
     const gChange = hgvsGChange(q, t.strand, gRef);
+    const points = [{ pos: cPosToGenome(t, q.start).genomic, c: formatCPos(q.start) }];
+    if (q.end !== q.start) points.push({ pos: cPosToGenome(t, q.end).genomic, c: formatCPos(q.end) });
     return {
       transcript: t.acc,
       gene: t.gene,
@@ -356,6 +391,7 @@ async function convertCdna(
       refCheck,
       warnings: [...new Set(w)],
       ucscUrl: ucscUrl(t.chrom, lo, hi),
+      verify: { forward: [cdnaForwardCheck(q, t, lo, hi, gRef)], points },
     } satisfies ResultCandidate;
   });
   return { candidates, errors };
@@ -462,6 +498,15 @@ async function convertProtein(
     const pText = `p.${q.aa1 ? aa3(q.aa1) : ""}${q.pos1}${q.pos2 ? `_${q.aa2 ? aa3(q.aa2) : ""}${q.pos2}` : ""}${q.change}`;
     const spliced = hi - lo + 1 > cLast - cFirst + 1;
     if (spliced) w.push("コドンがエクソン境界をまたいでいます。表示範囲にはイントロンが含まれます");
+    const codonPoints = (bases: number[], p: number) => bases.map((pos, i) => ({ pos, c: `c.${3 * p - 2 + i}` }));
+    const verify: VerifyPlan = {
+      forward: (snvCandidates ?? []).map((s) => ({
+        hgvs: `${t.acc}:${s.hgvsC}`,
+        edit: { from: s.genomicPos, to: s.genomicPos, alt: s.genomicAlt },
+        at: { hgvs: `${t.acc}:${s.hgvsC.replace(/[ACGT]>[ACGT]$/, "")}`, from: s.genomicPos, to: s.genomicPos },
+      })),
+      points: [...codonPoints(codon1, q.pos1), ...(codon2 && q.pos2 ? codonPoints(codon2, q.pos2) : [])],
+    };
     return {
       transcript: t.acc,
       gene: t.gene,
@@ -479,9 +524,86 @@ async function convertProtein(
       snvCandidates,
       warnings: [...new Set(w)],
       ucscUrl: ucscUrl(t.chrom, lo, hi),
+      verify,
     } satisfies ResultCandidate;
   });
   return { candidates, errors };
+}
+
+const MAX_BRIDGED_VERSIONS = 8;
+
+/**
+ * For an NM_/NP_ given without a version, computes the position under every version: those
+ * aligned in the hg38 data plus, for NM_, the intermediate versions UCSC lacks (via NCBI).
+ */
+async function compareVersions(
+  idx: RefSeqIndex,
+  q: CdnaQuery | ProteinQuery,
+  acc: string,
+  used: Transcript[],
+): Promise<{ rows: VersionRow[]; note: string; differs: boolean; complete: boolean }> {
+  const isNM = q.target.type === "transcript";
+  const base = accBase(acc);
+  const groups = new Map<string, Transcript[]>();
+  for (const t of (isNM ? idx.byBase.get(base) : idx.byProtBase.get(base)) ?? []) {
+    groups.set(t.acc, [...(groups.get(t.acc) ?? []), t]);
+  }
+  const failed = new Map<string, string>();
+  if (isNM) {
+    const have = new Set([...groups.keys()].map(accVersion));
+    const missing: string[] = [];
+    for (let v = Math.max(...have) - 1; v >= 1 && missing.length < MAX_BRIDGED_VERSIONS; v--) {
+      if (!have.has(v)) missing.push(`${base}.${v}`);
+    }
+    await Promise.all(
+      missing.map(async (m) => {
+        try {
+          groups.set(m, await Promise.all(used.map((t) => bridgeTranscript(m, t))));
+        } catch (e) {
+          failed.set(m, e instanceof Error ? e.message : String(e));
+        }
+      }),
+    );
+  }
+
+  const usedAccs = new Set(used.map((t) => t.acc));
+  const rows: VersionRow[] = await Promise.all(
+    [...groups].map(async ([tacc, ts]) => {
+      const r = q.kind === "cdna" ? await convertCdna(q, ts) : await convertProtein(q, ts);
+      const loci = [...new Map(r.candidates.map((c) => [`${c.chrom}:${c.start}-${c.end}`, { chrom: c.chrom, start: c.start, end: c.end }])).values()];
+      const checked = r.candidates.filter((c) => c.refCheck);
+      return {
+        transcript: tacc,
+        protein: ts[0].prot,
+        historical: ts[0].hist,
+        bridged: Boolean(ts[0].bridge),
+        used: usedAccs.has(tacc),
+        loci,
+        refOk: checked.length ? checked.some((c) => c.refCheck!.ok) : undefined,
+        error: r.candidates.length ? undefined : (r.errors[0] ?? "計算できませんでした").replace(/^[^:]+: /, ""),
+      };
+    }),
+  );
+  for (const [m, why] of failed) {
+    rows.push({ transcript: m, protein: "", historical: true, bridged: true, used: false, loci: [], error: `NCBI の配列で照合できませんでした（${why}）` });
+  }
+  const key = (r: VersionRow) => r.loci.map((l) => `${l.chrom}:${l.start}-${l.end}`).join(";");
+  const usedKeys = new Set(rows.filter((r) => r.used && r.loci.length).map(key));
+  for (const r of rows) if (r.loci.length) r.same = usedKeys.has(key(r));
+  rows.sort((a, b) => accVersion(b.protein || b.transcript) - accVersion(a.protein || a.transcript) || accVersion(b.transcript) - accVersion(a.transcript));
+
+  const computed = rows.filter((r) => r.loci.length);
+  const distinct = new Set(computed.map(key)).size;
+  const differs = distinct > 1;
+  const complete = rows.every((r) => !r.error);
+  const usedLabel = [...usedAccs].join("、");
+  const scope = isNM ? `${base} の全 ${rows.length} バージョン` : `hg38 データにある ${base} の ${rows.length} 件（NP_ と NM_ の組み合わせ）`;
+  const note = differs
+    ? `バージョン番号が未指定のため、${scope}で計算したところ、ゲノム位置が ${distinct} 通りに分かれました。表示している候補は ${usedLabel} の結果です。下の表で、お手元の資料のバージョンに対応する位置を選んでください（報告書にバージョンの記載がない場合は検査会社に確認してください）`
+    : complete
+      ? `バージョン番号が未指定のため、${scope}で計算しました。どのバージョンでも同じゲノム位置です`
+      : `バージョン番号が未指定のため、${scope}で計算しました。計算できたバージョンはすべて同じゲノム位置ですが、${rows.length - computed.length} バージョンは計算できませんでした（下の表を参照）`;
+  return { rows, note, differs, complete };
 }
 
 async function convertGenomic(
@@ -544,9 +666,19 @@ async function convertGenomic(
   return ts.map((t) => {
     const c1 = genomeToC(t, t.strand === "+" ? start : end);
     const c2 = start === end ? undefined : genomeToC(t, t.strand === "+" ? end : start);
-    let cText = c1 ? `${t.acc}:${c1}${c2 ? `_${c2.slice(2)}` : ""}` : undefined;
-    if (cText && start === end && refGiven && altGiven && refGiven.length === 1 && altGiven.length === 1) {
-      cText += t.strand === "+" ? `${refGiven}>${altGiven}` : `${revComp(refGiven)}>${revComp(altGiven)}`;
+    const posText = c1 ? `${c1}${c2 ? `_${c2.slice(2)}` : ""}` : undefined;
+    let cText = posText ? `${t.acc}:${posText}` : undefined;
+    let verify: VerifyPlan | undefined;
+    if (posText && cText) {
+      const fallback = positionOnly(t.acc, posText, start, end);
+      let forward = fallback;
+      if (start === end && refGiven && altGiven && refGiven.length === 1 && altGiven.length === 1) {
+        cText += t.strand === "+" ? `${refGiven}>${altGiven}` : `${revComp(refGiven)}>${revComp(altGiven)}`;
+        forward = { hgvs: cText, edit: { from: start, to: end, alt: altGiven }, at: fallback.at };
+      }
+      const points = [{ pos: t.strand === "+" ? start : end, c: c1! }];
+      if (c2) points.push({ pos: t.strand === "+" ? end : start, c: c2 });
+      verify = { forward: [forward], points };
     }
     return {
       ...base,
@@ -558,6 +690,7 @@ async function convertGenomic(
       strand: t.strand,
       hgvsC: cText,
       warnings: [...warnings, ...transcriptWarnings(idx, t).filter((x) => !x.includes("完全には一致しません"))],
+      verify,
     };
   });
 }
@@ -572,6 +705,7 @@ export async function convertOne(raw: string): Promise<ConversionResult> {
     let candidates: ResultCandidate[];
     let errors: string[] = [];
     let fallback = false;
+    let versions: VersionRow[] | undefined;
     if (q.kind === "genomic") {
       format = 1;
       candidates = await convertGenomic(q, idx, notes);
@@ -588,6 +722,14 @@ export async function convertOne(raw: string): Promise<ConversionResult> {
           : await convertProtein(q, resolved.transcripts);
       candidates = r.candidates;
       errors = r.errors;
+      if (q.target.type !== "gene" && !q.target.acc.includes(".") && candidates.length) {
+        const vc = await compareVersions(idx, q, q.target.acc, resolved.transcripts);
+        versions = vc.rows;
+        const i = notes.findIndex((n) => n.startsWith("バージョン番号が未指定"));
+        if (i >= 0) notes.splice(i, 1);
+        notes.unshift(vc.note);
+        fallback = vc.differs || !vc.complete;
+      }
       const perTranscript = new Map<string, number>();
       for (const c of candidates) perTranscript.set(c.transcript, (perTranscript.get(c.transcript) ?? 0) + 1);
       for (const c of candidates) {
@@ -641,6 +783,7 @@ export async function convertOne(raw: string): Promise<ConversionResult> {
       status: refFail || fallback ? "warning" : "ok",
       candidates,
       notes,
+      versions,
     };
   } catch (e) {
     if (e instanceof ParseError || e instanceof MappingError) {
