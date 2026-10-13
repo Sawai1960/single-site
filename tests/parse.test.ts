@@ -1,0 +1,104 @@
+import { describe, expect, it } from "vitest";
+import { ParseError, parseQuery } from "../src/lib/variant/parse";
+
+describe("形式1: ゲノム位置", () => {
+  it.each([
+    ["hg38, chr1:195507262", "hg38", "chr1", 195507262, 195507262],
+    ["hg38 chr1:195,507,262", "hg38", "chr1", 195507262, 195507262],
+    ["GRCh37 chr7:55259515", "hg19", "chr7", 55259515, 55259515],
+    ["chrX:100-200 (hg38)", "hg38", "chrX", 100, 200],
+    ["ｈｇ３８，ｃｈｒ１：１９５５０７２６２", "hg38", "chr1", 195507262, 195507262],
+    ["NC_000004.12:g.55113391C>T", "hg38", "chr4", 55113391, 55113391],
+    ["NC_000007.13:g.55259515", "hg19", "chr7", 55259515, 55259515],
+  ])("%s", (input, assembly, chrom, start, end) => {
+    const q = parseQuery(input);
+    expect(q).toMatchObject({ kind: "genomic", assembly, chrom, start, end });
+  });
+
+  it("バージョン未指定は hg38 として扱い、未指定であることを記録する", () => {
+    expect(parseQuery("chr4:55113391")).toMatchObject({ assembly: "hg38", assemblyGiven: false });
+  });
+
+  it("参照塩基・変異塩基を読み取る", () => {
+    expect(parseQuery("hg19 chr7:55259515 T>G")).toMatchObject({ change: "T>G" });
+  });
+});
+
+describe("形式2/4: c. 表記", () => {
+  it.each([
+    ["NM_002253.2:c.889G>A", { type: "transcript", acc: "NM_002253.2" }],
+    ["NM_002253.2, c.889G>A", { type: "transcript", acc: "NM_002253.2" }],
+    ["NM_002253.2(KDR):c.889G>A", { type: "transcript", acc: "NM_002253.2", gene: "KDR" }],
+    ["KDR:c.889G>A", { type: "gene", symbol: "KDR" }],
+    ["kdr c.889G>A", { type: "gene", symbol: "KDR" }],
+  ])("%s", (input, target) => {
+    const q = parseQuery(input);
+    expect(q).toMatchObject({
+      kind: "cdna",
+      target,
+      start: { base: 889, utr3: false, offset: 0 },
+      varType: "substitution",
+      refAllele: "G",
+      altAllele: "A",
+    });
+  });
+
+  it.each([
+    ["NM_000546.6:c.375+1G>A", { base: 375, utr3: false, offset: 1 }],
+    ["NM_000546.6:c.376-2A>G", { base: 376, utr3: false, offset: -2 }],
+    ["NM_000546.6:c.-30C>T", { base: -30, utr3: false, offset: 0 }],
+    ["NM_000546.6:c.*10C>T", { base: 10, utr3: true, offset: 0 }],
+    ["NM_000038.6:c.-18-966G>T", { base: -18, utr3: false, offset: -966 }],
+  ])("位置の種類 %s", (input, start) => {
+    expect(parseQuery(input)).toMatchObject({ start });
+  });
+
+  it.each([
+    ["NM_007294.4:c.68_69delAG", "deletion", "AG", undefined],
+    ["NM_007294.4:c.68_69del", "deletion", undefined, undefined],
+    ["NM_007294.4:c.5266dupC", "duplication", "C", undefined],
+    ["NM_000059.4:c.995_996insA", "insertion", undefined, "A"],
+    ["NM_007294.4:c.5146_5148delinsAAA", "delins", undefined, "AAA"],
+    ["NM_007294.4:c.100_110inv", "inversion", undefined, undefined],
+    ["NM_007294.4:c.100", "position", undefined, undefined],
+  ])("変異の種類 %s", (input, varType, refAllele, altAllele) => {
+    const q = parseQuery(input);
+    if (q.kind !== "cdna") throw new Error("not c.");
+    expect([q.varType, q.refAllele, q.altAllele]).toEqual([varType, refAllele, altAllele]);
+  });
+});
+
+describe("形式3/4: p. 表記", () => {
+  it.each([
+    ["NP_443086.1:p.Asp509Glyfs", { aa1: "D", pos1: 509, frameshift: true, altAA: "G" }],
+    ["NP_004976.2:p.G12D", { aa1: "G", pos1: 12, altAA: "D", frameshift: false }],
+    ["KRAS p.Gly12Asp", { aa1: "G", pos1: 12, altAA: "D" }],
+    ["TP53:p.(Arg175His)", { aa1: "R", pos1: 175, altAA: "H" }],
+    ["BRCA1:p.Arg1443Ter", { aa1: "R", pos1: 1443, altAA: "*" }],
+    ["BRCA1:p.R1443*", { aa1: "R", pos1: 1443, altAA: "*" }],
+    ["EGFR:p.Glu746_Ala750del", { aa1: "E", pos1: 746, aa2: "A", pos2: 750 }],
+  ])("%s", (input, expected) => {
+    expect(parseQuery(input)).toMatchObject({ kind: "protein", ...expected });
+  });
+
+  it("欠失 p. 表記では変異後アミノ酸を持たない", () => {
+    const q = parseQuery("EGFR:p.Glu746_Ala750del");
+    expect(q.kind === "protein" && q.altAA).toBeFalsy();
+  });
+});
+
+describe("入力エラー", () => {
+  it.each([
+    ["c.889G>A", /遺伝子名または NM_\/NP_ 番号/],
+    ["NM_002253.2:p.Val297Ile", /NP_ 番号か遺伝子名/],
+    ["NP_443086.1:c.100A>G", /NM_ 番号か遺伝子名/],
+    ["ENST00000263923:c.889G>A", /Ensembl ID/],
+    ["XM_011534.1:c.1A>G", /予測 RefSeq/],
+    ["hg38, chr23:100", /染色体番号/],
+    ["NM_002253.2:c.0A>G", /c\.0/],
+    ["何かの文字列", /入力形式を判別できません/],
+  ])("%s", (input, message) => {
+    expect(() => parseQuery(input)).toThrow(ParseError);
+    expect(() => parseQuery(input)).toThrow(message);
+  });
+});

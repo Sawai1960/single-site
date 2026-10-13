@@ -1,0 +1,10 @@
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
+
+export default function setup() {
+  const data = path.join(process.cwd(), "data", "refseq-hg38.json.gz");
+  if (!existsSync(data)) {
+    execFileSync("node", ["scripts/build-data.mjs", "--if-missing"], { stdio: "inherit" });
+  }
+}
