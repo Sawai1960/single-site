@@ -1,14 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRightLeft, Download, Eraser, Loader2, OctagonX } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { ResultCard } from "@/components/result-card";
+import { effectiveStatus, ResultCard } from "@/components/result-card";
+import {
+  fetchSourceChecks,
+  SOURCES,
+  verifiableIndexes,
+  verificationText,
+  type ResultVerification,
+  type SourceState,
+} from "@/components/verification";
 import { resultsToCsv } from "@/lib/variant/format";
-import type { ConversionResult } from "@/lib/variant/types";
+import type { ConversionResult, VerifySource } from "@/lib/variant/types";
 
 const EXAMPLES: { label: string; value: string }[] = [
   { label: "形式1", value: "hg38, chr4:55113391" },
@@ -20,12 +28,16 @@ const EXAMPLES: { label: string; value: string }[] = [
 ];
 
 const MAX_LINES = 200;
+/** External checks start automatically for the first results only, to stay within NCBI/Ensembl rate limits. */
+const AUTO_VERIFY_RESULTS = 5;
 
 export function Converter() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<ConversionResult[] | null>(null);
+  const [verification, setVerification] = useState<Record<number, ResultVerification>>({});
+  const runId = useRef(0);
   const [meta, setMeta] = useState<{ builtAt: string; mane: string; transcripts: number } | null>(null);
 
   useEffect(() => {
@@ -56,11 +68,30 @@ export function Converter() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      setResults(json.results);
+      const run = ++runId.current;
+      const list: ConversionResult[] = json.results;
+      setResults(list);
+      setVerification({});
+      list
+        .map((r, i) => ({ r, i }))
+        .filter(({ r }) => verifiableIndexes(r).length)
+        .slice(0, AUTO_VERIFY_RESULTS)
+        .forEach(({ r, i }) => verify(r, i, run));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
+    }
+  }
+
+  function verify(r: ConversionResult, i: number, run = runId.current) {
+    const update = (source: VerifySource, s: SourceState) => {
+      if (run !== runId.current) return;
+      setVerification((v) => ({ ...v, [i]: { ...v[i], [source]: s } }));
+    };
+    for (const { id } of SOURCES) {
+      update(id, { state: "pending" });
+      fetchSourceChecks(r, id).then((s) => update(id, s));
     }
   }
 
@@ -70,7 +101,15 @@ export function Converter() {
 
   function downloadCsv() {
     if (!results) return;
-    const blob = new Blob([resultsToCsv(results)], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob(
+      [
+        resultsToCsv(
+          results.map((r, i) => ({ ...r, status: effectiveStatus(r, verification[i]) })),
+          (ri, ci) => verificationText(verification[ri], ci),
+        ),
+      ],
+      { type: "text/csv;charset=utf-8" },
+    );
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     const d = new Date();
@@ -81,11 +120,12 @@ export function Converter() {
     URL.revokeObjectURL(url);
   }
 
-  const counts = results
+  const statuses = results?.map((r, i) => effectiveStatus(r, verification[i]));
+  const counts = statuses
     ? {
-        ok: results.filter((r) => r.status === "ok").length,
-        warning: results.filter((r) => r.status === "warning").length,
-        error: results.filter((r) => r.status === "error").length,
+        ok: statuses.filter((s) => s === "ok").length,
+        warning: statuses.filter((s) => s === "warning").length,
+        error: statuses.filter((s) => s === "error").length,
       }
     : null;
 
@@ -135,6 +175,8 @@ export function Converter() {
                   setText("");
                   setResults(null);
                   setError(null);
+                  setVerification({});
+                  runId.current++;
                 }}
                 disabled={loading || (!text && !results)}
               >
@@ -183,7 +225,12 @@ export function Converter() {
             </Button>
           </div>
           {results.map((r, i) => (
-            <ResultCard key={`${i}-${r.input}`} result={r} />
+            <ResultCard
+              key={`${i}-${r.input}`}
+              result={r}
+              verification={verification[i]}
+              onVerify={() => verify(r, i)}
+            />
           ))}
         </section>
       )}
@@ -200,6 +247,7 @@ export function Converter() {
         データ: UCSC Genome Browser hg38 の NCBI RefSeq アライメント（現行版と旧バージョン）
         {meta ? `／${meta.mane}／転写産物アライメント ${meta.transcripts.toLocaleString()} 件（${new Date(meta.builtAt).toLocaleDateString("ja-JP")} 取得）` : ""}
         。参照配列の照合には UCSC API（予備に Ensembl REST）、hg19 → hg38 変換には Ensembl REST を使います。
+        外部データベースとの照合には NCBI Variation Services と Ensembl VEP（RefSeq 転写産物）を使います（先頭 {AUTO_VERIFY_RESULTS} 件は自動、それ以降は各候補の「照合する」から実行）。
         変換結果は参考情報です。依頼書へ記入する前に、必ずゲノムブラウザで目的の変異であることを確認してください。
       </footer>
     </div>

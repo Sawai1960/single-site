@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { VerificationPanel, type candidateChecks } from "@/components/verification";
 import { cn } from "@/lib/utils";
 import { formatPos, ninePad } from "@/lib/variant/format";
 import type { ResultCandidate } from "@/lib/variant/types";
@@ -65,7 +66,20 @@ function Field({ label, value, mono = true }: { label: string; value?: string; m
   );
 }
 
-export function CandidateView({ c, dimmed = false }: { c: ResultCandidate; dimmed?: boolean }) {
+export function CandidateView({
+  c,
+  dimmed = false,
+  checks,
+  onVerify,
+}: {
+  c: ResultCandidate;
+  dimmed?: boolean;
+  checks?: ReturnType<typeof candidateChecks>;
+  onVerify?: () => void;
+}) {
+  const externalMismatch = Object.values(checks ?? {}).some(
+    (s) => s.state === "done" && (s.check?.forward?.status === "mismatch" || s.check?.reverse?.status === "mismatch"),
+  );
   const locus = c.start === c.end ? `${c.chrom}:${formatPos(c.start)}` : `${c.chrom}:${formatPos(c.start)}-${formatPos(c.end)}`;
   const plainLocus = c.start === c.end ? `${c.chrom}:${c.start}` : `${c.chrom}:${c.start}-${c.end}`;
   const len = c.end - c.start + 1;
@@ -106,6 +120,12 @@ export function CandidateView({ c, dimmed = false }: { c: ResultCandidate; dimme
               {c.refCheck.label}不一致
             </Badge>
           ))}
+        {externalMismatch && (
+          <Badge variant="destructive">
+            <XCircle data-icon="inline-start" />
+            外部データベースと不一致
+          </Badge>
+        )}
       </div>
 
       <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
@@ -206,6 +226,8 @@ export function CandidateView({ c, dimmed = false }: { c: ResultCandidate; dimme
           ))}
         </ul>
       )}
+
+      {c.verify && c.transcript && <VerificationPanel plan={c.verify} checks={checks ?? {}} onRun={onVerify} />}
     </div>
   );
 }
