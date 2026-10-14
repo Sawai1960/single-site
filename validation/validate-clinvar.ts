@@ -5,12 +5,13 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import "../tests/setup";
 import { convertOne, mapCdna, mapProtein, resolveTarget } from "../src/lib/variant/convert";
 import { revComp, translateCodon } from "../src/lib/variant/codon";
 import { bridgeTranscript } from "../src/lib/variant/bridge";
 import { genomeToC, MappingError } from "../src/lib/variant/mapping";
 import { parseQuery } from "../src/lib/variant/parse";
-import { accBase, getIndex } from "../src/lib/variant/refseq";
+import { accBase, ensureAll, getIndex } from "../src/lib/variant/refseq";
 import { getSequence } from "../src/lib/variant/remote";
 import type { ParsedQuery, Transcript } from "../src/lib/variant/types";
 
@@ -130,6 +131,7 @@ async function main() {
   const t0 = Date.now();
   const { source, cases } = loadCases();
   const idx = await getIndex();
+  await ensureAll(idx);
   const deferred: { k: Case; q: Extract<ParsedQuery, { kind: "cdna" }>; t: Transcript; lo: number; hi: number; key: string; label: string; via: string }[] = [];
   const proteinNetwork: { k: Case; q: Extract<ParsedQuery, { kind: "protein" }>; t: Transcript; codon: number[] }[] = [];
 

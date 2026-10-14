@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { CheckOutcome, ConversionResult, SourceChecks, VerifySource, VerifyPlan } from "@/lib/variant/types";
+import { verifyItems } from "@/lib/variant/verify";
 
 export const SOURCES: { id: VerifySource; label: string }[] = [
   { id: "ncbi", label: "NCBI" },
@@ -36,15 +37,9 @@ export async function fetchSourceChecks(r: ConversionResult, source: VerifySourc
     plan: r.candidates[i].verify as VerifyPlan,
   }));
   try {
-    const res = await fetch("/api/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source, items }),
-    });
-    const json = await res.json();
-    if (!res.ok) return { state: "error", message: json.error ?? `HTTP ${res.status}` };
+    const results = await verifyItems(source, items);
     const checks: (SourceChecks | null)[] = r.candidates.map(() => null);
-    idx.forEach((ci, k) => (checks[ci] = json.checks[k]));
+    idx.forEach((ci, k) => (checks[ci] = results[k]));
     return { state: "done", checks };
   } catch (e) {
     return { state: "error", message: e instanceof Error ? e.message : String(e) };

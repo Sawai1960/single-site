@@ -7,8 +7,8 @@
 //   --out FILE                output file (default validation/clinvar-sample.tsv)
 //   --exclude-genes-from FILE skip every gene that appears in an existing sample (held-out validation)
 //   --historical-only         keep only variants named on an NM_ version that is not the current
-//                             RefSeq release (per data/refseq-hg38.json.gz)
-import { createWriteStream, readFileSync } from "node:fs";
+//                             RefSeq release (per public/data/)
+import { createWriteStream, readdirSync, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { Readable } from "node:stream";
 import { createGunzip, gunzipSync } from "node:zlib";
@@ -33,11 +33,14 @@ const excludedGenes = new Set(
     : [],
 );
 const HISTORICAL_ONLY = process.argv.includes("--historical-only");
+const BUCKET_DIR = path.join(DIR, "..", "public", "data", "b");
 const currentNM = new Set(
   HISTORICAL_ONLY
-    ? JSON.parse(gunzipSync(readFileSync(path.join(DIR, "..", "data", "refseq-hg38.json.gz"))).toString("utf8"))
-        .transcripts.filter((t) => !t.hist)
-        .map((t) => t.acc)
+    ? readdirSync(BUCKET_DIR).flatMap((f) =>
+        JSON.parse(gunzipSync(readFileSync(path.join(BUCKET_DIR, f))).toString("utf8"))
+          .filter((t) => !t.hist)
+          .map((t) => t.acc),
+      )
     : [],
 );
 

@@ -42,31 +42,43 @@ npm install
 npm run dev
 ```
 
-ブラウザで <http://localhost:43127> を開きます。
+ブラウザで <http://localhost:43127/single-site/> を開きます。
 
-初回の `npm run dev` で、転写産物データ（約 50 MB）を UCSC と NCBI からダウンロードし、`data/refseq-hg38.json.gz` を作ります。2 回目以降はそのデータを使います。データの形式が古い場合は自動で作り直します。最新データに更新するときは次を実行します。
+初回の `npm run dev` で、転写産物データの元データを UCSC と NCBI からダウンロードし、`public/data/` に目次（`index.json.gz`、約 1.5 MB）と遺伝子ごとの束（`b/0000.json.gz`〜`b/1023.json.gz`、合計約 12 MB）を作ります。2 回目以降はそのデータを使います。データの形式が古い場合は自動で作り直します。最新データに更新するときは次を実行します。
 
 ```bash
 npm run data
 ```
 
-本番用のビルドと起動:
+## 公開（UMIN SQUARE）
+
+本ツールはサーバーを使わず、ブラウザだけで動きます。`npm run build` で `out/` に書き出したファイルを、UMIN SQUARE（<https://square.umin.ac.jp/single-site/>）の `html/` に置いて公開します。
+
+データの更新、書き出し、UMIN への送信は、次の 1 行で行えます（Windows の PowerShell では `npm.cmd`）。途中で UMIN のパスワードを入力します。
 
 ```bash
-npm run build
-npm start
+npm run publish
 ```
+
+- `npm run publish -- --skip-data`: データを取り直さずに書き出して送信します。
+- `npm run publish -- --no-upload`: 書き出しだけ行います。`npm run preview` を実行すると、<http://localhost:43128/single-site/> で UMIN と同じ住所の形で確認できます。
+- 送信先は `UMIN_USER`（既定 `single-site`）、`UMIN_HOST`（既定 `square.umin.ac.jp`）、`UMIN_DIR`（既定 `html`）で変えられます。公開する住所を変えるときは、`BASE_PATH`（既定 `/single-site`）も合わせて変えます。
+- 送信には Windows 標準の `sftp` を使います。うまくいかない場合は、WinSCP などで `out/` の中身を `html/` に送ってください。
+- 公開する住所は `https://square.umin.ac.jp/single-site/` にしてください。バーチャルホスト（`single-site.umin.jp`）や `~single-site` の住所では、画面の部品が読み込めません。
+
+半年に 1 回程度の更新で十分です。手元のデータに無い新しい版の NM_ も、NCBI の配列を使って換算できるためです。
 
 ## 仕組み
 
 - **転写産物の構造**: UCSC hg38 の `ncbiRefSeqPsl` / `ncbiRefSeqPslHistorical`（RefSeq 転写産物のゲノムへのアライメント）、`ncbiRefSeqCds`（CDS 範囲）、`ncbiRefSeqLink`（遺伝子名と NP 番号）を使います。アライメントのブロック単位で座標を計算するため、転写産物とゲノムの間に小さな差異があっても正しく対応付けられます。
 - **MANE**: NCBI の MANE summary（GRCh38）を使います。
 - **重複領域**: UCSC の `genomicSuperDups`（分節重複、95% 以上同一のもの）を使います。
-- **UCSC に無いバージョン**: NCBI E-utilities（efetch）でその版の配列と CDS を取得します。UCSC にある同じ番号の版の mRNA 配列と照合し、その版の hg38 アライメントに重ねて位置を求めます。NP_ の場合は、NCBI のレコードからコードする NM_ を求めます。環境変数 `NCBI_API_KEY` を設定すると、NCBI へのアクセス上限が 3 回/秒から 10 回/秒になります（任意）。
+- **データの読み込み**: ブラウザは最初に目次を読み込み、入力された NM_／NP_ 番号、遺伝子名、ゲノム位置に必要な束だけを取り寄せます。同じ NM_ 番号の全バージョンは同じ束に入っています。
+- **UCSC に無いバージョン**: NCBI E-utilities（efetch）でその版の配列と CDS を取得します。UCSC にある同じ番号の版の mRNA 配列と照合し、その版の hg38 アライメントに重ねて位置を求めます。NP_ の場合は、NCBI のレコードからコードする NM_ を求めます。
 - **参照配列**: 照合用の塩基は UCSC API から取得します（取得できない場合は Ensembl REST）。
 - **hg19 → hg38**: Ensembl REST の assembly mapping を使います。
 - **ミトコンドリアの遺伝子**: NCBI E-utilities で NC_012920.1 の GenBank レコードを取得し、遺伝子の範囲と正式な遺伝子名（MT-TL1 など）を読み取ります。UCSC の RefSeq データにはミトコンドリアの遺伝子が無いためです。外部データベースとの照合は対象外です。
-- **外部データベースとの照合**（`/api/verify`、結果の表示後に非同期で実行）:
+- **外部データベースとの照合**（結果の表示後に非同期で実行）:
   - NCBI 順変換: `hgvs/{c.}/contextuals` で転写産物上の SPDI を求め、`spdi/{SPDI}/all_equivalent_contextual` で hg38（NC_）上の同じ変異を得ます。
   - NCBI 逆変換: hg38 の各塩基を SPDI にして `all_equivalent_contextual` で転写産物上の位置を得て、NCBI のレコードの CDS 範囲から c. 位置に直します。
   - Ensembl: VEP の `hgvs`（順変換）と `region`（逆変換、`hgvs=1`）を `refseq=1` で呼びます。
@@ -74,7 +86,7 @@ npm start
   - NCBI はイントロン内の変異に対応していません。逆変換で返すのは現行版の NM_ だけです。Ensembl は現行版の NM_ しか持っておらず、応答に数十秒かかったり一時的なエラーを返したりします（自動で再試行します）。照合できない場合は理由つきで「確認不可」と表示します。
   - 画面では、先頭 5 件の結果を自動で照合します。それ以降は候補ごとの「照合する」から実行します。
 
-座標計算はサーバー内で行います。インターネット接続が必要なのは、参照塩基の照合、hg19 からの変換、UCSC に無いバージョンの配列取得、ミトコンドリアの遺伝子情報、外部データベースとの照合だけです。接続できない場合も位置は計算されますが、照合は行われません。UCSC に無いバージョンは、NCBI に接続できないと別の版で計算し、その旨を表示します。
+座標計算は利用者のブラウザ内で行います。外部サービスへの問い合わせも、ブラウザから NCBI・Ensembl・UCSC へ直接送られ、本ツールのサーバーを経由しません。インターネット接続が必要なのは、転写産物データの読み込みのほか、参照塩基の照合、hg19 からの変換、UCSC に無いバージョンの配列取得、ミトコンドリアの遺伝子情報、外部データベースとの照合だけです。接続できない場合も位置は計算されますが、照合は行われません。UCSC に無いバージョンは、NCBI に接続できないと別の版で計算し、その旨を表示します。
 
 ## 正しさの検証
 
@@ -129,31 +141,15 @@ npx tsx validation/validate-external.ts --ensembl
 
 ### 2. 回帰テスト（`npm test`）
 
-`tests/` に 148 件のテストがあります。
+`tests/` に 149 件のテストがあります。
 
 - `parse.test.ts`: 色々な書き方の入力（全角文字、ClinVar 形式、1 文字・3 文字のアミノ酸記号、ミトコンドリアの m. 表記、エラー入力）の解析
 - `mapping.test.ts`: ClinVar の正解値を使った座標計算（両方の鎖、イントロン、UTR、欠失・挿入、遠い上流、修正した不具合の再発防止）
 - `seqalign.test.ts`: バージョン間の配列照合（延長、置換、欠失、ゲノムのアライメントとの合成）
-- `convert.test.ts`: Web API と同じ処理全体（リファレンス照合、注意表示、複数コピーの遺伝子、UCSC に無いバージョン、バージョン番号なしの全版比較、候補の並び順、hg19 からの変換、ミトコンドリア DNA、エラー表示）
+- `convert.test.ts`: 画面と同じ処理全体（必要な束だけを読み込む方式で実行。リファレンス照合、注意表示、複数コピーの遺伝子、UCSC に無いバージョン、バージョン番号なしの全版比較、候補の並び順、hg19 からの変換、ミトコンドリア DNA、エラー表示）
 - `verify.test.ts`: NCBI・Ensembl との照合（一致、位置をずらすと不一致になること、重複コピーの検出、イントロン、dup と ins の等価判定、Ensembl に無い旧版）
 
 外部 API の応答は `tests/fixtures/remote.json` と `tests/fixtures/external.json` に保存したものを再生します。そのため、テストはオフラインでも同じ結果になります。テストケースを追加したときは、`RECORD_FIXTURES=1 npm test` で応答を記録し直してください。
-
-## API
-
-```bash
-curl -X POST http://localhost:43127/api/convert \
-  -H 'Content-Type: application/json' \
-  -d '{"queries": ["NM_002253.2:c.889G>A", "KRAS p.G12D"]}'
-```
-
-`/api/convert` の各候補の `verify` を `/api/verify` に渡すと、外部データベースと照合します（`source` は `ncbi` か `ensembl`）。
-
-```bash
-curl -X POST http://localhost:43127/api/verify \
-  -H 'Content-Type: application/json' \
-  -d '{"source": "ncbi", "items": [{"transcript": "NM_002253.4", "chrom": "chr4", "plan": <候補の verify>}]}'
-```
 
 ## 注意
 

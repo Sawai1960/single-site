@@ -6,12 +6,13 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { mapCdna, mapProtein, resolveTarget } from "../src/lib/variant/convert";
 import { genomeToC } from "../src/lib/variant/mapping";
 import { parseQuery } from "../src/lib/variant/parse";
-import { getIndex, type RefSeqIndex } from "../src/lib/variant/refseq";
+import { ensureAll, getIndex, type RefSeqIndex } from "../src/lib/variant/refseq";
 import type { ParsedQuery, Transcript } from "../src/lib/variant/types";
 
 let idx: RefSeqIndex;
 beforeAll(async () => {
   idx = await getIndex();
+  await ensureAll(idx);
 });
 
 function transcriptFor(input: string, acc?: string): { q: ParsedQuery; t: Transcript } {

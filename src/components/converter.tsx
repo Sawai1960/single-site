@@ -15,7 +15,9 @@ import {
   type ResultVerification,
   type SourceState,
 } from "@/components/verification";
+import { convertMany } from "@/lib/variant/convert";
 import { resultsToCsv } from "@/lib/variant/format";
+import { getIndex } from "@/lib/variant/refseq";
 import type { ConversionResult, VerifySource } from "@/lib/variant/types";
 
 const EXAMPLES: { label: string; value: string }[] = [
@@ -42,9 +44,8 @@ export function Converter() {
   const [meta, setMeta] = useState<{ builtAt: string; mane: string; transcripts: number } | null>(null);
 
   useEffect(() => {
-    fetch("/api/meta")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((m) => m && setMeta(m))
+    getIndex()
+      .then((idx) => setMeta({ builtAt: idx.builtAt, mane: idx.sources.mane, transcripts: idx.count }))
       .catch(() => {});
   }, []);
 
@@ -62,15 +63,9 @@ export function Converter() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/convert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ queries: lines }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      await getIndex();
+      const list = await convertMany(lines);
       const run = ++runId.current;
-      const list: ConversionResult[] = json.results;
       setResults(list);
       setVerification({});
       list

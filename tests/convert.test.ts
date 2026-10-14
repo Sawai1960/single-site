@@ -1,5 +1,5 @@
 /*
- * End-to-end tests through convertOne (the function behind /api/convert).
+ * End-to-end tests through convertOne, loading transcript buckets on demand as the browser does.
  * Remote calls are replaced by recorded responses in tests/fixtures/remote.json.
  * Re-record with: RECORD_FIXTURES=1 npx vitest run tests/convert.test.ts
  */
@@ -181,6 +181,8 @@ describe("照合と注意表示", () => {
     ["NM_000854.3:c.338C>T", "GSTT2B"],
     ["NM_001472.2:c.185C>T", "GAGE"],
     ["SMN1:c.840C>T", "SMN2"],
+    // 2 つのコピーの長さが違い、もう一方のコピーの位置が重複領域の外にはみ出す
+    ["NM_012200.4:c.914del", "TRIM59"],
   ])("ほぼ同じ配列のコピーがある遺伝子（%s）に注意を出す", async (input, partner) => {
     const r = await convertOne(input);
     const w = r.candidates[0].warnings.find((x) => x.includes("分節重複"));

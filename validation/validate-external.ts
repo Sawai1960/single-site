@@ -7,6 +7,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import "../tests/setup";
 import { convertOne } from "../src/lib/variant/convert";
 import { sameVariant, verifyItems, type VerifyItem } from "../src/lib/variant/verify";
 import type { CheckOutcome, ResultCandidate, SourceChecks, VerifySource } from "../src/lib/variant/types";

@@ -1,12 +1,14 @@
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { gunzipSync } from "node:zlib";
-import type { Transcript } from "./types";
+import type { QueryTarget, Transcript } from "./types";
 
+/**
+ * Transcripts are loaded on demand: the maps below hold only the buckets loaded so far.
+ * Call the ensure* functions before looking anything up.
+ */
 export interface RefSeqIndex {
   builtAt: string;
   sources: { ucsc: string; mane: string; maneVersion: string };
+  lookup: Lookup;
+  loaded: Map<number, Promise<void>>;
   byAcc: Map<string, Transcript[]>;
   byBase: Map<string, Transcript[]>;
   byProt: Map<string, Transcript[]>;
@@ -31,9 +33,49 @@ export interface SegDup {
   reversed: boolean;
 }
 
-export const DATA_FILE = path.join(process.cwd(), "data", "refseq-hg38.json.gz");
+/** Which bucket files hold the transcripts for an accession, gene, synonym or region. */
+interface Lookup {
+  buckets: number;
+  /** NM_ accession without version → bucket */
+  acc: Record<string, number>;
+  /** NP_ accession without version → buckets */
+  prot: Record<string, number[]>;
+  /** upper-case gene symbol → buckets */
+  gene: Record<string, number[]>;
+  /** upper-case gene synonym → buckets */
+  syn: Record<string, number[]>;
+  /** per chrom, sorted by start: [start (1-based), end, bucket] of current transcripts */
+  spans: Map<string, [number, number, number][]>;
+}
 
-const g = globalThis as unknown as { __refseqIndex?: Promise<RefSeqIndex> };
+/** Reads a file under the data directory (public/data/ when built). */
+export type DataReader = (file: string) => Promise<ArrayBuffer>;
+
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
+const fetchReader: DataReader = async (file) => {
+  const res = await fetch(`${BASE_PATH}/data/${file}`);
+  if (!res.ok) throw new Error(`転写産物データ（${file}）を読み込めませんでした: HTTP ${res.status}`);
+  return res.arrayBuffer();
+};
+
+const g = globalThis as unknown as { __refseqIndex?: Promise<RefSeqIndex>; __refseqReader?: DataReader };
+
+export function setDataReader(reader: DataReader) {
+  g.__refseqReader = reader;
+  g.__refseqIndex = undefined;
+}
+
+/** The web server may already have undone the gzip (Content-Encoding), so check the magic bytes. */
+async function readJson<T>(file: string): Promise<T> {
+  const buf = await (g.__refseqReader ?? fetchReader)(file);
+  const bytes = new Uint8Array(buf);
+  const text =
+    bytes[0] === 0x1f && bytes[1] === 0x8b
+      ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text()
+      : new TextDecoder().decode(bytes);
+  return JSON.parse(text) as T;
+}
 
 function push<K, V>(map: Map<K, V[]>, key: K, value: V) {
   const arr = map.get(key);
@@ -50,18 +92,22 @@ export function accVersion(acc: string): number {
 }
 
 async function load(): Promise<RefSeqIndex> {
-  if (!existsSync(DATA_FILE)) {
-    throw new Error("転写産物データが見つかりません。`npm run data` を実行してください");
-  }
-  const json = JSON.parse(gunzipSync(await readFile(DATA_FILE)).toString("utf8")) as {
-    builtAt: string;
-    sources: RefSeqIndex["sources"];
-    transcripts: Transcript[];
-    segdups?: [string, number, number, string, number, number, number, string][];
-  };
+  const json = await readJson<
+    Omit<Lookup, "spans"> & {
+      builtAt: string;
+      sources: RefSeqIndex["sources"];
+      count: number;
+      spans: [string, number, number, number][];
+      segdups?: [string, number, number, string, number, number, number, string][];
+    }
+  >("index.json.gz");
+  const spans = new Map<string, [number, number, number][]>();
+  for (const [chrom, start, end, bucket] of json.spans) push(spans, chrom, [start, end, bucket]);
   const idx: RefSeqIndex = {
     builtAt: json.builtAt,
     sources: json.sources,
+    lookup: { buckets: json.buckets, acc: json.acc, prot: json.prot, gene: json.gene, syn: json.syn, spans },
+    loaded: new Map(),
     byAcc: new Map(),
     byBase: new Map(),
     byProt: new Map(),
@@ -70,13 +116,17 @@ async function load(): Promise<RefSeqIndex> {
     bySynonym: new Map(),
     byChrom: new Map(),
     segdups: new Map(),
-    count: json.transcripts.length,
+    count: json.count,
   };
   for (const [chrom, start, end, otherChrom, otherStart, otherEnd, identity, strand] of json.segdups ?? []) {
     push(idx.segdups, chrom, { start, end, otherChrom, otherStart, otherEnd, identity, reversed: strand === "-" });
   }
   for (const arr of idx.segdups.values()) arr.sort((a, b) => a.start - b.start);
-  for (const t of json.transcripts) {
+  return idx;
+}
+
+function addTranscripts(idx: RefSeqIndex, transcripts: Transcript[]) {
+  for (const t of transcripts) {
     push(idx.byAcc, t.acc, t);
     push(idx.byBase, accBase(t.acc), t);
     if (t.prot) {
@@ -94,7 +144,65 @@ async function load(): Promise<RefSeqIndex> {
       push(idx.byChrom, t.chrom, { t, start: Math.min(...gs) + 1, end: Math.max(...ge) });
     }
   }
-  return idx;
+}
+
+function ensureBuckets(idx: RefSeqIndex, buckets: Iterable<number>): Promise<void> {
+  const pending: Promise<void>[] = [];
+  for (const b of new Set(buckets)) {
+    let p = idx.loaded.get(b);
+    if (!p) {
+      p = readJson<Transcript[]>(`b/${String(b).padStart(4, "0")}.json.gz`).then((ts) => addTranscripts(idx, ts));
+      p.catch(() => idx.loaded.delete(b));
+      idx.loaded.set(b, p);
+    }
+    pending.push(p);
+  }
+  return Promise.all(pending).then(() => undefined);
+}
+
+/** Loads every version of these NM_ accessions (with or without version). */
+export function ensureAccessions(idx: RefSeqIndex, accs: string[]): Promise<void> {
+  return ensureBuckets(
+    idx,
+    accs.map((a) => idx.lookup.acc[accBase(a)]).filter((b) => b !== undefined),
+  );
+}
+
+/** Loads everything resolveTarget may look at for this target. */
+export function ensureTarget(idx: RefSeqIndex, target: QueryTarget): Promise<void> {
+  const { lookup } = idx;
+  if (target.type === "transcript") return ensureAccessions(idx, [target.acc]);
+  if (target.type === "protein") return ensureBuckets(idx, lookup.prot[accBase(target.acc)] ?? []);
+  const key = target.symbol.toUpperCase();
+  return ensureBuckets(idx, [...(lookup.gene[key] ?? []), ...(lookup.syn[key] ?? [])]);
+}
+
+/** Loads the current transcripts overlapping chrom:start-end (1-based inclusive). */
+export function ensureRegion(idx: RefSeqIndex, chrom: string, start: number, end: number): Promise<void> {
+  const spans = idx.lookup.spans.get(chrom) ?? [];
+  return ensureBuckets(
+    idx,
+    spans.filter(([s, e]) => s <= end && e >= start).map(([, , b]) => b),
+  );
+}
+
+/** Loads the genes near the other copies of these transcripts' segmental duplications. */
+export function ensureDuplicateContext(idx: RefSeqIndex, ts: Transcript[]): Promise<void> {
+  const loads: Promise<void>[] = [];
+  for (const t of ts) {
+    const coding = codingIntervals(t);
+    for (const d of idx.segdups.get(t.chrom) ?? []) {
+      if (!coding.some(([a, b]) => d.start < b && d.end > a)) continue;
+      const { start, end } = projectIntoCopy(coding, d);
+      loads.push(ensureRegion(idx, d.otherChrom, start - DUP_SLACK, end + DUP_SLACK));
+    }
+  }
+  return Promise.all(loads).then(() => undefined);
+}
+
+/** For offline validation: loads every bucket. */
+export function ensureAll(idx: RefSeqIndex): Promise<void> {
+  return ensureBuckets(idx, Array.from({ length: idx.lookup.buckets }, (_, i) => i));
 }
 
 export function getIndex(): Promise<RefSeqIndex> {
@@ -130,6 +238,8 @@ export interface DuplicatedCopies {
 }
 
 const dupCache = new WeakMap<Transcript, DuplicatedCopies | null>();
+/** genes this close to the projected copy are named in the warning */
+const DUP_SLACK = 2000;
 
 /** Coding regions in genome coordinates (0-based half-open). */
 function codingIntervals(t: Transcript): [number, number][] {
@@ -143,6 +253,21 @@ function codingIntervals(t: Transcript): [number, number][] {
     out.push(t.strand === "+" ? [gs + (a - qs), gs + (b - qs)] : [gs + (qs + size - b), gs + (qs + size - a)]);
   }
   return out;
+}
+
+/**
+ * Projects a gene's coding span into the other copy of a duplication (approximate: ignores
+ * indels, so it can extend past the other copy when the two copies differ in length).
+ */
+function projectIntoCopy(coding: [number, number][], d: SegDup): { start: number; end: number } {
+  const geneStart = Math.min(...coding.map((c) => c[0]));
+  const geneEnd = Math.max(...coding.map((c) => c[1]));
+  const a = Math.max(geneStart, d.start) - d.start;
+  const b = Math.min(geneEnd, d.end) - d.start;
+  return {
+    start: d.reversed ? d.otherEnd - b : d.otherStart + a,
+    end: d.reversed ? d.otherEnd - a : d.otherStart + b,
+  };
 }
 
 /**
@@ -173,19 +298,12 @@ export function duplicatedCopies(idx: RefSeqIndex, t: Transcript): DuplicatedCop
     }
     const coverage = covered / total;
     if (coverage >= 0.5) {
-      const geneStart = Math.min(...coding.map((c) => c[0]));
-      const geneEnd = Math.max(...coding.map((c) => c[1]));
       const copies = new Map<string, { chrom: string; start: number; end: number; genes: string[] }>();
       for (const d of sds) {
-        // Project this gene's coding span into the other copy (approximate: ignores indels).
-        const a = Math.max(geneStart, d.start) - d.start;
-        const b = Math.min(geneEnd, d.end) - d.start;
-        const start = d.reversed ? d.otherEnd - b : d.otherStart + a;
-        const end = d.reversed ? d.otherEnd - a : d.otherStart + b;
-        const slack = 2000;
+        const { start, end } = projectIntoCopy(coding, d);
         const genes = new Set(
           (idx.byChrom.get(d.otherChrom) ?? [])
-            .filter((e) => !e.t.hist && e.start <= end + slack && e.end > start - slack && e.t.gene !== t.gene)
+            .filter((e) => !e.t.hist && e.start <= end + DUP_SLACK && e.end > start - DUP_SLACK && e.t.gene !== t.gene)
             .map((e) => e.t.gene),
         );
         const key = `${d.otherChrom}:${Math.round(start / 2e4)}`;

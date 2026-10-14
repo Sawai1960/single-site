@@ -6,6 +6,10 @@ import {
   accBase,
   accVersion,
   duplicatedCopies,
+  ensureAccessions,
+  ensureDuplicateContext,
+  ensureRegion,
+  ensureTarget,
   getIndex,
   overlapping,
   sortTranscripts,
@@ -185,6 +189,7 @@ export async function resolveTargetWithNcbi(idx: RefSeqIndex, target: QueryTarge
     }
     const np = await getRefSeqRecord(target.acc);
     if (!np.mrna) throw new Error(`${target.acc} をコードする NM_ が NCBI のレコードにありません`);
+    await ensureAccessions(idx, [np.mrna]);
     let ts = idx.byAcc.get(np.mrna);
     const notes = [`NCBI のレコードでは ${target.acc} は ${np.mrna} がコードするタンパク質です`];
     if (!ts) {
@@ -316,6 +321,7 @@ async function convertCdna(
       else throw e;
     }
   }
+  await ensureDuplicateContext(idx, mapped.map((m) => m.t));
 
   const byChrom = new Map<string, [number, number][]>();
   for (const m of mapped) {
@@ -413,6 +419,7 @@ async function convertProtein(
       else throw e;
     }
   }
+  await ensureDuplicateContext(idx, mapped.map((m) => m.t));
 
   const byChrom = new Map<string, [number, number][]>();
   for (const m of mapped) {
@@ -728,7 +735,9 @@ async function convertGenomic(
     ];
   }
 
+  await ensureRegion(idx, chrom, start, start);
   const ts = sortTranscripts(overlapping(idx, chrom, start)).slice(0, MAX_GENOMIC_TRANSCRIPTS);
+  await ensureDuplicateContext(idx, ts);
   if (!ts.length) {
     notes.push("この位置に重なる RefSeq 転写産物（NM_）はありません（遺伝子間領域の可能性）");
     return [
@@ -784,6 +793,7 @@ export async function convertOne(raw: string): Promise<ConversionResult> {
       fallback = !q.assemblyGiven;
     } else {
       format = q.target.type === "gene" ? 4 : q.kind === "cdna" ? 2 : 3;
+      await ensureTarget(idx, q.target);
       const resolved = await resolveTargetWithNcbi(idx, q.target);
       notes.push(...resolved.notes);
       fallback = resolved.fallback;

@@ -54,11 +54,10 @@ export interface RefSeqRecord {
 const rg = globalThis as unknown as { __refseqRecords?: Map<string, Promise<RefSeqRecord>>; __ncbiQueue?: Promise<void> };
 const records = (rg.__refseqRecords ??= new Map());
 
-/** NCBI E-utilities allow 3 requests/s without an API key (10/s with NCBI_API_KEY). */
+/** NCBI E-utilities allow 3 requests/s without an API key. */
 async function ncbiSlot(): Promise<void> {
-  const gap = process.env.NCBI_API_KEY ? 110 : 350;
   const prev = rg.__ncbiQueue ?? Promise.resolve();
-  const next = prev.then(() => new Promise<void>((r) => setTimeout(r, gap)));
+  const next = prev.then(() => new Promise<void>((r) => setTimeout(r, 350)));
   rg.__ncbiQueue = next;
   await prev;
 }
@@ -82,10 +81,9 @@ export async function getRefSeqRecord(acc: string): Promise<RefSeqRecord> {
   if (hit) return hit;
   const p = (async () => {
     const isProtein = /^[NX]P_/.test(acc);
-    const key = process.env.NCBI_API_KEY ? `&api_key=${encodeURIComponent(process.env.NCBI_API_KEY)}` : "";
     const url =
       "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi" +
-      `?db=${isProtein ? "protein" : "nuccore"}&id=${encodeURIComponent(acc)}&rettype=${isProtein ? "gp" : "gb"}&retmode=text${key}`;
+      `?db=${isProtein ? "protein" : "nuccore"}&id=${encodeURIComponent(acc)}&rettype=${isProtein ? "gp" : "gb"}&retmode=text`;
     await ncbiSlot();
     let text: string;
     try {
@@ -156,10 +154,9 @@ const mg = globalThis as unknown as { __mitoGenes?: Promise<MitoFeature[]> };
 export function getMitoGenes(): Promise<MitoFeature[]> {
   if (mg.__mitoGenes) return mg.__mitoGenes;
   const p = (async () => {
-    const key = process.env.NCBI_API_KEY ? `&api_key=${encodeURIComponent(process.env.NCBI_API_KEY)}` : "";
     await ncbiSlot();
     const text = await fetchText(
-      `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_012920.1&rettype=gb&retmode=text${key}`,
+      "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_012920.1&rettype=gb&retmode=text",
     );
     const genes = parseMitoGenBank(text);
     if (genes.length < 30) throw new Error("NCBI: ミトコンドリアの遺伝子情報を解析できません");
