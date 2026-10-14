@@ -7,8 +7,9 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RAW = path.join(ROOT, "data", "raw");
 const OUT = path.join(ROOT, "data", "refseq-hg38.json.gz");
 

@@ -4,6 +4,7 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { convertOne, mapCdna, mapProtein, resolveTarget } from "../src/lib/variant/convert";
 import { revComp, translateCodon } from "../src/lib/variant/codon";
 import { bridgeTranscript } from "../src/lib/variant/bridge";
@@ -13,7 +14,7 @@ import { accBase, getIndex } from "../src/lib/variant/refseq";
 import { getSequence } from "../src/lib/variant/remote";
 import type { ParsedQuery, Transcript } from "../src/lib/variant/types";
 
-const DIR = path.dirname(new URL(import.meta.url).pathname);
+const DIR = path.dirname(fileURLToPath(import.meta.url));
 const argN = (name: string, def: number) => {
   const i = process.argv.indexOf(name);
   return i >= 0 ? Number(process.argv[i + 1]) : def;

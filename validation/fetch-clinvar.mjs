@@ -13,8 +13,9 @@ import { createInterface } from "node:readline";
 import { Readable } from "node:stream";
 import { createGunzip, gunzipSync } from "node:zlib";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const DIR = path.dirname(new URL(import.meta.url).pathname);
+const DIR = path.dirname(fileURLToPath(import.meta.url));
 const arg = (name) => {
   const i = process.argv.indexOf(name);
   return i >= 0 ? process.argv[i + 1] : undefined;

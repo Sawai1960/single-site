@@ -6,11 +6,12 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { convertOne } from "../src/lib/variant/convert";
 import { sameVariant, verifyItems, type VerifyItem } from "../src/lib/variant/verify";
 import type { CheckOutcome, ResultCandidate, SourceChecks, VerifySource } from "../src/lib/variant/types";
 
-const DIR = path.dirname(new URL(import.meta.url).pathname);
+const DIR = path.dirname(fileURLToPath(import.meta.url));
 const arg = (name: string, def: string) => {
   const i = process.argv.indexOf(name);
   return i >= 0 ? process.argv[i + 1] : def;
