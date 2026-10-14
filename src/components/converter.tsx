@@ -237,17 +237,7 @@ export function Converter() {
         </div>
       )}
 
-      <Cautions />
-
-      <Disclaimer />
-
-      <footer className="border-t pt-4 text-xs leading-relaxed text-muted-foreground">
-        データ: UCSC Genome Browser hg38 の NCBI RefSeq アライメント（現行版と旧バージョン）
-        {meta ? `／${meta.mane}／転写産物アライメント ${meta.transcripts.toLocaleString()} 件（${new Date(meta.builtAt).toLocaleDateString("ja-JP")} 取得）` : ""}
-        。参照配列の照合には UCSC API（予備に Ensembl REST）、hg19 → hg38 変換には Ensembl REST、ミトコンドリアの遺伝子情報には NCBI の NC_012920.1 を使います。
-        外部データベースとの照合には NCBI Variation Services と Ensembl VEP（RefSeq 転写産物）を使います（先頭 {AUTO_VERIFY_RESULTS} 件は自動、それ以降は各候補の「照合する」から実行）。
-        変換結果は参考情報です。依頼書へ記入する前に、必ずゲノムブラウザで目的の変異であることを確認してください。
-      </footer>
+      <Notes meta={meta} />
     </div>
   );
 }
@@ -292,52 +282,67 @@ function FormatGuide() {
   );
 }
 
-function Cautions() {
-  const items = [
-    "NM_ 番号（スプライシング型）が違うとゲノム位置が変わることがあります。候補が複数ある場合は、お手元の情報と矛盾がないか確認してください。",
-    "得られた位置は、UCSC Genome Browser などで同じリファレンス（hg38）を開き、SNP・ClinVar などの情報が元の変異と一致するか確認してください。",
-    "古くから知られる変異は、シグナル配列を除いた成熟型タンパク質の番号で表記されていることがあります。その場合は、シグナル配列を含むコード領域上の番号に直してから入力してください。",
-    "2 塩基以上の欠失は、範囲内のどの位置を指定しても構いません。依頼書の特記事項欄に欠失の内容を記入してください。",
-    "NGS 法で確認できるのは 1〜20 塩基程度の小さな変異までです。PMS2・BMPR1A・SDHD・CHEK2・NF1 などは相同領域があり、受け入れが難しい場合があります。",
-    "難病の遺伝子パネル検査で見つかった変異の家系解析にも使えます。ただし、エクソン単位の欠失・重複（CNV）や反復配列の伸長（リピート病）は位置指定のシングルサイト検査の対象外です。CYP21A2・SMN1/SMN2・GBA1・PKD1 など偽遺伝子や相同領域がある遺伝子は、重複領域の警告が出ます。受け入れ可否は検査会社に確認してください。",
-    "ミトコンドリア DNA の変異は m. 表記（rCRS の番号、hg38 の chrM と同じ）で入力できます。変異の割合（ヘテロプラスミー率）は組織や人によって違うため、割合の測定が必要かどうかも含めて検査会社に確認してください。",
-  ];
-  return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>位置を指定するときの注意</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-          {items.map((t) => (
-            <li key={t}>{t}</li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
-  );
-}
+const CAUTIONS = [
+  "NM_ 番号（スプライシング型）が違うとゲノム位置が変わることがあります。候補が複数ある場合は、お手元の情報と矛盾がないか確認してください。",
+  "得られた位置は、UCSC Genome Browser などで同じリファレンス（hg38）を開き、SNP・ClinVar などの情報が元の変異と一致するか確認してください。",
+  "古くから知られる変異は、シグナル配列を除いた成熟型タンパク質の番号で表記されていることがあります。その場合は、シグナル配列を含むコード領域上の番号に直してから入力してください。",
+  "2 塩基以上の欠失は、範囲内のどの位置を指定しても構いません。依頼書の特記事項欄に欠失の内容を記入してください。",
+  "NGS 法で確認できるのは 1〜20 塩基程度の小さな変異までです。PMS2・BMPR1A・SDHD・CHEK2・NF1 などは相同領域があり、受け入れが難しい場合があります。",
+  "難病の遺伝子パネル検査で見つかった変異の家系解析にも使えます。ただし、エクソン単位の欠失・重複（CNV）や反復配列の伸長（リピート病）は位置指定のシングルサイト検査の対象外です。CYP21A2・SMN1/SMN2・GBA1・PKD1 など偽遺伝子や相同領域がある遺伝子は、重複領域の警告が出ます。受け入れ可否は検査会社に確認してください。",
+  "ミトコンドリア DNA の変異は m. 表記（rCRS の番号、hg38 の chrM と同じ）で入力できます。変異の割合（ヘテロプラスミー率）は組織や人によって違うため、割合の測定が必要かどうかも含めて検査会社に確認してください。",
+];
 
-function Disclaimer() {
-  const items = [
-    "本ツールは、HGVS 表記で記載されたバリアントの GRCh38 ゲノム座標を求める作業を支援するためのものであり、疾患の診断・治療・予防を目的としたものではありません。",
-    "本ツールは、臨床遺伝専門医、認定遺伝カウンセラー等の遺伝医学の専門家による利用を想定しています。出力結果は必ず UCSC Genome Browser 等で確認のうえご使用ください。検査依頼への使用を含め、最終的な判断と責任は利用者が担うものとします。",
-    "本ツールは UCSC Genome Browser、NCBI、Ensembl 等の公開データを使用しています。作成者は、出力結果の正確性・完全性・最新性を保証しません。",
-    "作成者は、本ツールの使用または使用できなかったことによって生じたいかなる損害についても、責任を負いません。",
-    "患者を特定できる情報（氏名・ID 等）は入力しないでください。",
+const DISCLAIMER = [
+  "本ツールは、HGVS 表記で記載されたバリアントの GRCh38 ゲノム座標を求める作業を支援するためのものであり、疾患の診断・治療・予防を目的としたものではありません。",
+  "本ツールは、臨床遺伝専門医、認定遺伝カウンセラー等の遺伝医学の専門家による利用を想定しています。出力結果は必ず UCSC Genome Browser 等で確認のうえご使用ください。検査依頼への使用を含め、最終的な判断と責任は利用者が担うものとします。",
+  "本ツールは UCSC Genome Browser、NCBI、Ensembl 等の公開データを使用しています。作成者は、出力結果の正確性・完全性・最新性を保証しません。",
+  "作成者は、本ツールの使用または使用できなかったことによって生じたいかなる損害についても、責任を負いません。",
+  "患者を特定できる情報（氏名・ID 等）は入力しないでください。",
+];
+
+function Notes({ meta }: { meta: { builtAt: string; mane: string; transcripts: number } | null }) {
+  const sources = [
+    `転写産物の構造: UCSC Genome Browser hg38 の NCBI RefSeq アライメント（現行版と旧バージョン）${
+      meta
+        ? `、${meta.mane}、転写産物アライメント ${meta.transcripts.toLocaleString()} 件（${new Date(meta.builtAt).toLocaleDateString("ja-JP")} 取得）`
+        : ""
+    }`,
+    "参照配列の照合: UCSC API（予備に Ensembl REST）",
+    "hg19 → hg38 の変換: Ensembl REST",
+    "ミトコンドリアの遺伝子情報: NCBI の NC_012920.1",
+    `外部データベースとの照合: NCBI Variation Services と Ensembl VEP（RefSeq 転写産物）。先頭 ${AUTO_VERIFY_RESULTS} 件は自動で照合し、それ以降は各候補の「照合する」から実行します。`,
   ];
   return (
     <Card size="sm" id="disclaimer">
       <CardHeader>
-        <CardTitle>利用上の注意と免責事項</CardTitle>
+        <CardTitle>利用上の注意</CardTitle>
       </CardHeader>
-      <CardContent>
-        <ol className="list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-          {items.map((t) => (
-            <li key={t}>{t}</li>
-          ))}
-        </ol>
-        <p className="mt-3 text-sm text-muted-foreground">作成者: 兵庫医科大学 澤井英明</p>
+      <CardContent className="space-y-5 text-sm leading-relaxed text-foreground/90">
+        <section>
+          <h3 className="mb-1.5 font-semibold text-foreground">■ 位置を指定するときの注意</h3>
+          <ul className="list-disc space-y-1 pl-5">
+            {CAUTIONS.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </section>
+        <section>
+          <h3 className="mb-1.5 font-semibold text-foreground">■ 免責事項</h3>
+          <ol className="list-decimal space-y-1 pl-5">
+            {DISCLAIMER.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ol>
+        </section>
+        <section>
+          <h3 className="mb-1.5 font-semibold text-foreground">■ 使用しているデータと外部サービス</h3>
+          <ul className="list-disc space-y-1 pl-5">
+            {sources.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </section>
+        <p>作成者: 兵庫医科大学 澤井英明</p>
       </CardContent>
     </Card>
   );
