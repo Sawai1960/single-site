@@ -1,0 +1,198 @@
+{
+  "origin": {
+    "version": 1,
+    "sessionId": "local-7d4a6b85-209e-41d0-aae1-9f59394fa446",
+    "model": "claude-opus-5-5-medium",
+    "agent": "cursor",
+    "promptCount": 18,
+    "promptHash": "sha256:29468afa3417aa50dd22483cbbddcd3242e8fbde750ed2b895766754cfa25ca8",
+    "promptTextWithheld": true,
+    "prompts": [
+      {
+        "index": 0,
+        "promptHash": "sha256:3e543ea098a0d172a3fc009bdc8ed44fd39d1d29218961faa8afff032dc6738b",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "src/components/candidate-view.tsx",
+          "src/components/converter.tsx",
+          "src/components/result-card.tsx"
+        ]
+      },
+      {
+        "index": 1,
+        "promptHash": "sha256:ac5f6d21b305dd43ba4824756892ee7714b7ccea7fdb51d453104ff1ce6695f1",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 2,
+        "promptHash": "sha256:f1c6eecf39d99715636cf97dbc2546207675739961c386ba02f55e0b21767b77",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 3,
+        "promptHash": "sha256:05e5f2407c2b6f166ee59443a72244f5be9f49d5c1cbf0be406a23646aecc60b",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 4,
+        "promptHash": "sha256:470e6cfafbcf933fb19b8801392d764537562956b37d820408d7f814b6d5fba1",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "README.md",
+          "src/app/page.tsx",
+          "src/app/layout.tsx"
+        ]
+      },
+      {
+        "index": 5,
+        "promptHash": "sha256:60b807a1d8be6aca1ee0f8fc9a0a030ee6f2ac8ef03597e3bea51ac05b487fda",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 6,
+        "promptHash": "sha256:c75279b6975a99fc9982eb5983fe7ac09b913102e32287e085331c83c46b37b6",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 7,
+        "promptHash": "sha256:3b586dc59d638e28b5c4ef46e8933cfd54455594b9462e7a029eb48c77b89802",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "README.md",
+          "src/app/page.tsx",
+          "src/components/converter.tsx"
+        ]
+      },
+      {
+        "index": 8,
+        "promptHash": "sha256:83220c4c7d69d12c557fe903b53baf82398a1ddcf050d3b25772c7e19f3dde38",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 9,
+        "promptHash": "sha256:8f8f28fc68ec2c0ceaff36b46d9e318f39661fbc8980b2f1a104cd29edb05441",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 10,
+        "promptHash": "sha256:3e8c816e1f933904db142c6455f4df2bbee0b0de49212b467145be611ef21ddf",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 11,
+        "promptHash": "sha256:1a181fe395882abe4909ae2211daed98db6d55a9c16d14b6122a64e80d08794c",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 12,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 13,
+        "promptHash": "sha256:9462ac2356d4a9f227f56f4c554bbe58a17592aa9df1f8867031f7864a11369f",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 14,
+        "promptHash": "sha256:6fca8b350ffc9a98ce1eb9d17afa113afefe5ae9d6f0adf6068e75a266ded673",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 15,
+        "promptHash": "sha256:bd4534081d6fb407a62f91ebe2848ac1eedf7fd72c836d0b10e5c52d4a0bb4e0",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 16,
+        "promptHash": "sha256:11cdc804eae9c4687b2bda3b5bafbfb14f62dab00accdb52d1d55d50551f7795",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 17,
+        "promptHash": "sha256:29468afa3417aa50dd22483cbbddcd3242e8fbde750ed2b895766754cfa25ca8",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          ".gitignore",
+          "HANDOFF.md",
+          "README.md",
+          "next.config.ts",
+          "package.json",
+          "scripts/build-data.mjs",
+          "src/components/converter.tsx",
+          "src/components/verification.tsx",
+          "src/lib/variant/convert.ts",
+          "src/lib/variant/refseq.ts",
+          "src/lib/variant/remote.ts",
+          "tests/convert.test.ts",
+          "tests/global-setup.ts",
+          "tests/mapping.test.ts",
+          "validation/fetch-clinvar.mjs",
+          "validation/validate-clinvar.ts",
+          "validation/validate-external.ts",
+          "vitest.config.ts",
+          "scripts/preview.mjs",
+          "scripts/publish.mjs",
+          "tests/setup.ts"
+        ]
+      }
+    ],
+    "durationMs": 10179765,
+    "linesAdded": 458,
+    "linesRemoved": 223,
+    "originUrl": "https://getorigin.io/sessions/local-7d4a6b85-209e-41d0-aae1-9f59394fa446",
+    "timestamp": "2026-10-14T10:38:27.208Z"
+  },
+  "attribution_record": {
+    "schema_version": "1.0",
+    "revision": {
+      "vcs": "git",
+      "id": "8b38b456296e30d87dd7303a7cca1627a6b826df"
+    },
+    "attribution_level": "commit",
+    "recorded_at": "2026-10-14T10:38:27.208Z",
+    "producer": {
+      "name": "origin-cli",
+      "version": "0.20261014.246"
+    },
+    "contributions": [
+      {
+        "evidence": "session_capture",
+        "agent": {
+          "id": "cursor"
+        },
+        "model": {
+          "id": "claude-opus-5-5-medium"
+        },
+        "session": {
+          "id": "local-7d4a6b85-209e-41d0-aae1-9f59394fa446",
+          "started_at": "2026-10-14T07:48:47.362Z",
+          "duration_ms": 10179846,
+          "iterations": [
+            {
+              "index": 17,
+              "prompt_hash": "sha256:29468afa3417aa50dd22483cbbddcd3242e8fbde750ed2b895766754cfa25ca8"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
