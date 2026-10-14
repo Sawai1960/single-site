@@ -69,11 +69,14 @@ function Field({ label, value, mono = true }: { label: string; value?: string; m
 export function CandidateView({
   c,
   dimmed = false,
+  mapped = false,
   checks,
   onVerify,
 }: {
   c: ResultCandidate;
   dimmed?: boolean;
+  /** position was converted from c./p. via the transcript alignment (input formats 2–4) */
+  mapped?: boolean;
   checks?: ReturnType<typeof candidateChecks>;
   onVerify?: () => void;
 }) {
@@ -133,7 +136,10 @@ export function CandidateView({
       <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="space-y-3">
           <div>
-            <div className="text-xs text-muted-foreground">hg38 ゲノム位置{len > 1 ? `（${len} 塩基）` : ""}</div>
+            <div className="text-xs text-muted-foreground">
+              hg38 ゲノム位置{len > 1 ? `（${len} 塩基）` : ""}
+              {mapped && <span>（UCSC hg38 の RefSeq アライメントで換算）</span>}
+            </div>
             <div className="flex flex-wrap items-center gap-1">
               <span className="font-mono text-xl font-bold tracking-tight">{locus}</span>
               <Button variant="ghost" size="icon-sm" onClick={() => copy(plainLocus, "ゲノム位置")} aria-label="ゲノム位置をコピー">

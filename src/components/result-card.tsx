@@ -108,6 +108,7 @@ export function ResultCard({
   const primary = matched.length ? matched : mismatched;
   const secondary = matched.length ? mismatched : [];
   const visible = showAll ? primary : primary.slice(0, INITIAL_VISIBLE);
+  const mapped = result.format !== undefined && result.format > 1;
   const external = hasMismatch(verification);
 
   return (
@@ -159,6 +160,7 @@ export function ResultCard({
           <CandidateView
             key={`${c.transcript}-${c.chrom}-${c.start}-${i}`}
             c={c}
+            mapped={mapped}
             checks={candidateChecks(verification, i)}
             onVerify={onVerify}
           />
@@ -181,6 +183,7 @@ export function ResultCard({
                   key={`mm-${c.transcript}-${c.chrom}-${c.start}-${i}`}
                   c={c}
                   dimmed
+                  mapped={mapped}
                   checks={candidateChecks(verification, i)}
                   onVerify={onVerify}
                 />

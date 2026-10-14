@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "変異位置 → hg38 ゲノム座標 変換ツール",
+  title: "シングルサイト解析のための HGVS–GRCh38 座標自動変換ツール",
   description:
-    "NM_ の c. 表記・NP_ の p. 表記・遺伝子名からの表記・ミトコンドリアの m. 表記を hg38 のゲノム位置に変換し、シングルサイト解析の依頼書用の 9 桁表記で出力します。",
+    "HGVS 表記（c.・p.・g.・m.）および遺伝子名で記載されたバリアントを、NCBI RefSeq 転写産物のゲノムアライメントに基づいて GRCh38（hg38）のゲノム座標に変換し、検査依頼書用の 9 桁表記を出力します。がん・難病のシングルサイト解析（家系内解析を含む）における対象座標の特定を支援します。",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

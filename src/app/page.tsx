@@ -9,9 +9,12 @@ export default function Home() {
           <Dna className="size-6" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">変異位置 → hg38 ゲノム座標 変換ツール</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">シングルサイト解析のための HGVS–GRCh38 座標自動変換ツール</h1>
           <p className="mt-1 text-sm text-muted-foreground sm:text-base">
-            c. 表記・p. 表記・遺伝子名からの表記・ミトコンドリアの m. 表記を、hg38 のゲノム位置と依頼書用の 9 桁表記に変換します。がんや難病のシングルサイト解析（家系解析を含む）の依頼書作成に使えます。
+            HGVS 表記（c.・p.・g.・m.）および遺伝子名で記載されたバリアントを、NCBI RefSeq 転写産物のゲノムアライメントに基づいて GRCh38（hg38）のゲノム座標に変換し、検査依頼書用の 9 桁表記を出力します。がん・難病のシングルサイト解析（家系内解析を含む）における対象座標の特定を支援します。
+          </p>
+          <p className="mt-2 text-sm font-medium text-foreground/80">
+            本ツールは遺伝医学の専門家による利用を想定した研究・業務支援ツールです。ご使用の前に、画面下部の「<a href="#disclaimer" className="underline underline-offset-2">利用上の注意と免責事項</a>」をご確認ください。
           </p>
         </div>
       </header>

@@ -244,6 +244,8 @@ export function Converter() {
 
       <Cautions />
 
+      <Disclaimer />
+
       <footer className="border-t pt-4 text-xs leading-relaxed text-muted-foreground">
         データ: UCSC Genome Browser hg38 の NCBI RefSeq アライメント（現行版と旧バージョン）
         {meta ? `／${meta.mane}／転写産物アライメント ${meta.transcripts.toLocaleString()} 件（${new Date(meta.builtAt).toLocaleDateString("ja-JP")} 取得）` : ""}
@@ -268,6 +270,8 @@ function FormatGuide() {
         <CardTitle>対応している入力形式</CardTitle>
         <CardDescription>
           形式 2〜4 は hg38 のゲノム位置（形式 1）に変換します。形式 1 は hg38 上の位置の確認と、重なる転写産物の c. 表記を表示します。ミトコンドリア DNA の m. 表記（rCRS の番号）も形式 1 として扱います。
+          <br />
+          本ツールの計算: UCSC Genome Browser（hg38）に登録されている NCBI RefSeq 転写産物とゲノムの対応表（エクソンごとのアライメント）を使って、c. 位置を hg38 の位置に換算しています。p. 表記は、そのアミノ酸のコドン 3 塩基の位置に換算します。
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -314,6 +318,31 @@ function Cautions() {
             <li key={t}>{t}</li>
           ))}
         </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Disclaimer() {
+  const items = [
+    "本ツールは、HGVS 表記で記載されたバリアントの GRCh38 ゲノム座標を求める作業を支援するためのものであり、疾患の診断・治療・予防を目的としたものではありません。",
+    "本ツールは、臨床遺伝専門医、認定遺伝カウンセラー等の遺伝医学の専門家による利用を想定しています。出力結果は必ず UCSC Genome Browser 等で確認のうえご使用ください。検査依頼への使用を含め、最終的な判断と責任は利用者が担うものとします。",
+    "本ツールは UCSC Genome Browser、NCBI、Ensembl 等の公開データを使用しています。作成者は、出力結果の正確性・完全性・最新性を保証しません。",
+    "作成者は、本ツールの使用または使用できなかったことによって生じたいかなる損害についても、責任を負いません。",
+    "患者を特定できる情報（氏名・ID 等）は入力しないでください。",
+  ];
+  return (
+    <Card size="sm" id="disclaimer">
+      <CardHeader>
+        <CardTitle>利用上の注意と免責事項</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ol className="list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+          {items.map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ol>
+        <p className="mt-3 text-sm text-muted-foreground">作成者: 兵庫医科大学 澤井英明</p>
       </CardContent>
     </Card>
   );
