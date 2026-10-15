@@ -379,7 +379,7 @@ describe("かずさの依頼書（区分ごとのチェック）", () => {
     const c = r.candidates[0];
     expect(c.gene).toBe("MLH1");
     expect(c.refCheck?.ok).toBe(true);
-    expect(kazusaCheck(c, "sanger").issues.join()).toContain("がん関連60遺伝子です");
+    expect(kazusaCheck(c, "sanger").issues.join()).toContain("対象（60 遺伝子）です");
   });
 
   it("がん60: 遺伝子名＋9桁を作り、対象内なら注意を出さない", async () => {

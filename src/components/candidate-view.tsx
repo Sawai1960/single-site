@@ -77,7 +77,7 @@ function RequestPanel({ c, mode, len }: { c: ResultCandidate; mode: KazusaMode; 
   if (mode === "cancer60") {
     return (
       <>
-        <div className="text-xs font-medium">がん関連60遺伝子の依頼書用（遺伝子名＋9桁）</div>
+        <div className="text-xs font-medium">がん関連遺伝子の依頼書用（遺伝子名＋9桁）</div>
         {c.gene && (
           <div className="flex items-center gap-2">
             <span className="w-8 shrink-0 text-xs text-muted-foreground">遺伝子</span>

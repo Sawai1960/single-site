@@ -10,7 +10,7 @@ const nine = (n: number) => String(n).padStart(9, "0");
 export type KazusaMode = "cancer60" | "sanger";
 
 export const MODE_LABEL: Record<KazusaMode, string> = {
-  cancer60: "がん関連60遺伝子",
+  cancer60: "がん関連遺伝子",
   sanger: "それ以外（Sanger 単一エクソン）",
 };
 
@@ -72,7 +72,7 @@ export interface KazusaCheck {
 export function kazusaCheck(c: ResultCandidate, mode: KazusaMode): KazusaCheck {
   const issues: string[] = [];
   if (c.chrom === "chrM") {
-    if (mode === "cancer60") issues.push("ミトコンドリア DNA はがん関連60遺伝子の検査の対象外です");
+    if (mode === "cancer60") issues.push("ミトコンドリア DNA はがん関連遺伝子のシングルサイト解析の対象外です");
     return { issues };
   }
   if (!c.gene) {
@@ -83,7 +83,9 @@ export function kazusaCheck(c: ResultCandidate, mode: KazusaMode): KazusaCheck {
   const size = indelSize(c);
   if (mode === "cancer60") {
     if (!cancer60) {
-      issues.push(`${c.gene} はがん関連60遺伝子に含まれません。それ以外（Sanger 単一エクソン）の依頼書をご利用ください`);
+      issues.push(
+        `${c.gene} はがん関連遺伝子のシングルサイト解析の対象（60 遺伝子）に含まれません。それ以外（Sanger 単一エクソン）の依頼書をご利用ください`,
+      );
     }
     const d = cPart(c);
     const pts = d ? cPoints(d) : [];
@@ -99,7 +101,7 @@ export function kazusaCheck(c: ResultCandidate, mode: KazusaMode): KazusaCheck {
     }
   } else {
     if (cancer60) {
-      issues.push(`${c.gene} はがん関連60遺伝子です。がん関連遺伝子のシングルサイト解析の依頼書をご利用ください`);
+      issues.push(`${c.gene} はがん関連遺伝子のシングルサイト解析の対象（60 遺伝子）です。がん関連遺伝子の依頼書をご利用ください`);
     }
     if (size !== undefined) {
       issues.push("欠失・挿入の変異です。大きな欠失・挿入は別途かずさ遺伝子検査室に相談するよう、依頼書に記載されています");

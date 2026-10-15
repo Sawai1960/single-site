@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { convertMany } from "@/lib/variant/convert";
 import { resultsToCsv } from "@/lib/variant/format";
-import { MODE_LABEL, SANGER_SITES_PER_FORM, type KazusaMode } from "@/lib/variant/kazusa";
+import { CANCER60_GENES, MODE_LABEL, SANGER_SITES_PER_FORM, type KazusaMode } from "@/lib/variant/kazusa";
 import { getIndex } from "@/lib/variant/refseq";
 import type { ConversionResult, VerifySource } from "@/lib/variant/types";
 
@@ -41,7 +41,7 @@ const EXAMPLES: Record<KazusaMode, { label: string; value: string }[]> = {
 };
 
 const MODES: { id: KazusaMode; sub: string; form: string }[] = [
-  { id: "cancer60", sub: "NGS によるシングルサイト解析", form: "依頼書: 遺伝子名＋9桁の位置" },
+  { id: "cancer60", sub: "NGS によるシングルサイト解析（対象は 60 遺伝子）", form: "依頼書: 遺伝子名＋9桁の位置" },
   { id: "sanger", sub: "上記以外の遺伝子", form: "依頼書: 遺伝子名・位置・NM 番号・c. 表記を1行で" },
 ];
 
@@ -190,6 +190,17 @@ export function Converter() {
                   </button>
                 ))}
               </div>
+              <details className="rounded-lg border bg-muted/30 px-3 py-2 text-xs">
+                <summary className="cursor-pointer font-medium select-none">
+                  がん関連遺伝子のシングルサイト解析の対象 60 遺伝子（一覧を表示）
+                </summary>
+                <p className="mt-2 font-mono leading-relaxed break-words">
+                  {[...CANCER60_GENES].sort().join("、")}
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  これ以外の遺伝子は、がんに関連する遺伝子でも「それ以外（Sanger 単一エクソン）」の依頼になります。選んだ区分と遺伝子が合わない場合は、変換結果に注意が出ます。
+                </p>
+              </details>
               <p className="text-xs text-muted-foreground">
                 かずさ遺伝子検査室の検査案内書（がん関連遺伝子のシングルサイト解析 K110-40 Ver 8、ヒト遺伝子単一エクソン受託解析 K110-6 Ver 9）に基づきます。
               </p>
