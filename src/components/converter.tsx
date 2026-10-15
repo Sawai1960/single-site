@@ -132,7 +132,7 @@ export function Converter() {
           <CardHeader>
             <CardTitle>変異の位置情報を入力</CardTitle>
             <CardDescription>
-              1 行に 1 件ずつ入力してください。複数行をまとめて変換できます（最大 {MAX_LINES} 行）。
+              1 行に 1 件ずつ、Enter で改行して入力してください。複数行をまとめて変換できます（最大 {MAX_LINES} 行）。枠内の薄い文字は入力例で、書き始めると消えます。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -151,7 +151,7 @@ export function Converter() {
               aria-label="変異の位置情報"
             />
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-xs text-muted-foreground">入力例:</span>
+              <span className="mr-1 text-xs text-muted-foreground">入力例（クリックすると上の欄に入ります）:</span>
               {EXAMPLES.map((ex) => (
                 <Button key={ex.value} variant="outline" size="xs" onClick={() => addExample(ex.value)}>
                   <span className="text-muted-foreground">{ex.label}</span>
@@ -294,7 +294,7 @@ const CAUTIONS = [
 
 const DISCLAIMER = [
   "本ツールは、HGVS 表記で記載されたバリアントの GRCh38 ゲノム座標を求める作業を支援するためのものであり、疾患の診断・治療・予防を目的としたものではありません。",
-  "本ツールは、臨床遺伝専門医、認定遺伝カウンセラー等の遺伝医学の専門家による利用を想定しています。出力結果は必ず UCSC Genome Browser 等で確認のうえご使用ください。検査依頼への使用を含め、最終的な判断と責任は利用者が担うものとします。",
+  "本ツールは、臨床遺伝専門医による利用を想定しています。認定遺伝カウンセラー等は座標の確認に使えますが、診断・治療の判断は臨床遺伝専門医が行ってください。出力結果は必ず UCSC Genome Browser 等で確認のうえご使用ください。検査依頼への使用を含め、最終的な判断と責任は利用者が担うものとします。",
   "本ツールは UCSC Genome Browser、NCBI、Ensembl 等の公開データを使用しています。作成者は、出力結果の正確性・完全性・最新性を保証しません。",
   "作成者は、本ツールの使用または使用できなかったことによって生じたいかなる損害についても、責任を負いません。",
   "患者を特定できる情報（氏名・ID 等）は入力しないでください。",

@@ -14,7 +14,7 @@ export default function Home() {
             HGVS 表記（c.・p.・g.・m.）および遺伝子名で記載されたバリアントを、NCBI RefSeq 転写産物のゲノムアライメントに基づいて GRCh38（hg38）のゲノム座標に変換し、検査依頼書用の 9 桁表記を出力します。がん・難病のシングルサイト解析（家系内解析を含む）における対象座標の特定を支援します。
           </p>
           <p className="mt-2 text-sm font-medium text-foreground/80">
-            本ツールは遺伝医学の専門家による利用を想定した研究・業務支援ツールです。ご使用の前に、画面下部の「<a href="#disclaimer" className="underline underline-offset-2">利用上の注意と免責事項</a>」をご確認ください。
+            本ツールは、臨床遺伝専門医による利用を想定した教育・研究支援ツールです。認定遺伝カウンセラー等は座標の確認に使えますが、診断・治療の判断は臨床遺伝専門医が行ってください。ご使用の前に、画面下部の「<a href="#disclaimer" className="underline underline-offset-2">利用上の注意と免責事項</a>」をご確認ください。
           </p>
         </div>
       </header>
