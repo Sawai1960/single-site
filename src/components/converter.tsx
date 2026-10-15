@@ -116,7 +116,7 @@ export function Converter() {
     const blob = new Blob(
       [
         resultsToCsv(
-          results.map((r, i) => ({ ...r, status: effectiveStatus(r, verification[i]) })),
+          results.map((r, i) => ({ ...r, status: effectiveStatus(r, verification[i], mode) })),
           mode,
           (ri, ci) => verificationText(verification[ri], ci),
         ),
@@ -133,7 +133,7 @@ export function Converter() {
     URL.revokeObjectURL(url);
   }
 
-  const statuses = results?.map((r, i) => effectiveStatus(r, verification[i]));
+  const statuses = results?.map((r, i) => effectiveStatus(r, verification[i], mode));
   const summaries = results?.map((r, i) => verificationSummary(r, verification[i]));
   const counts =
     statuses && summaries
@@ -202,7 +202,7 @@ export function Converter() {
                 </p>
               </details>
               <p className="text-xs text-muted-foreground">
-                かずさ遺伝子検査室の検査案内書（がん関連遺伝子のシングルサイト解析 K110-40 Ver 8、ヒト遺伝子単一エクソン受託解析 K110-6 Ver 9）に基づきます。
+                区分と注意の表示は、公開されているかずさ遺伝子検査室の検査案内書（がん関連遺伝子のシングルサイト解析 K110-40 Ver 8、ヒト遺伝子単一エクソン受託解析 K110-6 Ver 9）をもとに作成したものです。本ツールはかずさ遺伝子検査室が公式に承認したツールではありません。依頼の際は最新の検査案内書・依頼書をご確認ください。
               </p>
             </fieldset>
             <div className="pt-1 text-sm font-medium">② 変異を入力してください</div>
@@ -413,6 +413,7 @@ const DISCLAIMER = [
   "本ツールは、HGVS 表記で記載されたバリアントの GRCh38 ゲノム座標を求める作業を支援するためのものであり、疾患の診断・治療・予防を目的としたものではありません。",
   "本ツールは、臨床遺伝専門医による利用を想定しています。認定遺伝カウンセラー等は座標の確認に使えますが、診断・治療の判断は臨床遺伝専門医が行ってください。出力結果は必ず UCSC Genome Browser 等で確認のうえご使用ください。検査依頼への使用を含め、最終的な判断と責任は利用者が担うものとします。",
   "本ツールは UCSC Genome Browser、NCBI、Ensembl 等の公開データを使用しています。作成者は、出力結果の正確性・完全性・最新性を保証しません。",
+  "本ツールは、かずさ遺伝子検査室（公益財団法人かずさ DNA 研究所）とは関係ありません。同検査室の検査案内書の内容は作成時点の版（K110-40 Ver 8、K110-6 Ver 9）に基づいており、改訂後の内容は反映されていない場合があります。本ツールの結果について、同検査室へのお問い合わせはお控えください。",
   "作成者は、本ツールの使用または使用できなかったことによって生じたいかなる損害についても、責任を負いません。",
   "患者を特定できる情報（氏名・ID 等）は入力しないでください。",
 ];

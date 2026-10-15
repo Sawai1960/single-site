@@ -23,6 +23,9 @@ export const CANCER60_GENES: ReadonlySet<string> = new Set([
   "TGFBR2", "TP53", "TSC1", "TSC2", "VHL", "WT1", "FH", "MAX", "SDHA", "TMEM127",
 ]);
 
+/** Genes with homologous sequences elsewhere in the genome; the lab may decline some positions. */
+export const HOMOLOGOUS_GENES: ReadonlySet<string> = new Set(["PMS2", "BMPR1A", "SDHD", "CHEK2", "NF1", "SDHA"]);
+
 const CANCER60_INDEL_LIMIT = 10;
 const CANCER60_INTRON_LIMIT = 10;
 export const SANGER_SITES_PER_FORM = 5;
@@ -67,17 +70,19 @@ export interface KazusaCheck {
   /** whether the gene is one of the 60 genes; undefined when no gene is assigned */
   cancer60?: boolean;
   issues: string[];
+  /** outside the chosen test's scope, wrong request form, or a homologous-region gene */
+  review: boolean;
 }
 
 export function kazusaCheck(c: ResultCandidate, mode: KazusaMode): KazusaCheck {
   const issues: string[] = [];
   if (c.chrom === "chrM") {
     if (mode === "cancer60") issues.push("ミトコンドリア DNA はがん関連遺伝子のシングルサイト解析の対象外です");
-    return { issues };
+    return { issues, review: issues.length > 0 };
   }
   if (!c.gene) {
     issues.push("遺伝子に重ならない位置のため、依頼書の区分を判定できません");
-    return { issues };
+    return { issues, review: true };
   }
   const cancer60 = isCancer60(c.gene);
   const size = indelSize(c);
@@ -99,15 +104,28 @@ export function kazusaCheck(c: ResultCandidate, mode: KazusaMode): KazusaCheck {
     if (size !== undefined && size > CANCER60_INDEL_LIMIT) {
       issues.push(`${size} 塩基の欠失・挿入です。検査の対象は ${CANCER60_INDEL_LIMIT} 塩基以内です`);
     }
-  } else {
-    if (cancer60) {
-      issues.push(`${c.gene} はがん関連遺伝子のシングルサイト解析の対象（60 遺伝子）です。がん関連遺伝子の依頼書をご利用ください`);
-    }
-    if (size !== undefined) {
-      issues.push("欠失・挿入の変異です。大きな欠失・挿入は別途かずさ遺伝子検査室に相談するよう、依頼書に記載されています");
-    }
+  } else if (cancer60) {
+    issues.push(`${c.gene} はがん関連遺伝子のシングルサイト解析の対象（60 遺伝子）です。がん関連遺伝子の依頼書をご利用ください`);
   }
-  return { cancer60, issues };
+  const review = issues.length > 0 || HOMOLOGOUS_GENES.has(c.gene.toUpperCase());
+  if (mode === "sanger" && size !== undefined) {
+    issues.push("欠失・挿入の変異です。大きな欠失・挿入は別途かずさ遺伝子検査室に相談するよう、依頼書に記載されています");
+  }
+  return { cancer60, issues, review };
+}
+
+/** No candidate can be ordered as-is with the chosen request form. */
+export function needsReview(candidates: ResultCandidate[], mode: KazusaMode): boolean {
+  return candidates.length > 0 && candidates.every((c) => kazusaCheck(c, mode).review);
+}
+
+/** The request form to use instead when every candidate belongs to the other one; undefined otherwise. */
+export function wrongForm(candidates: ResultCandidate[], mode: KazusaMode): KazusaMode | undefined {
+  if (!candidates.length) return undefined;
+  if (mode === "cancer60") {
+    return candidates.every((c) => c.chrom === "chrM" || (c.gene && !isCancer60(c.gene))) ? "sanger" : undefined;
+  }
+  return candidates.every((c) => c.chrom !== "chrM" && c.gene && isCancer60(c.gene)) ? "cancer60" : undefined;
 }
 
 /** Candidates of the chosen request type first, keeping the original order otherwise. */

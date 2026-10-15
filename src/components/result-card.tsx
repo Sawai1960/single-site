@@ -10,14 +10,15 @@ import { CandidateView } from "@/components/candidate-view";
 import {
   candidateChecks,
   hasMismatch,
+  SOURCES,
   verificationSummary,
   type ResultVerification,
   type VerificationSummary,
 } from "@/components/verification";
 import { cn } from "@/lib/utils";
 import { formatPos, ninePad } from "@/lib/variant/format";
-import { modeRank, type KazusaMode } from "@/lib/variant/kazusa";
-import type { ConversionResult, VersionRow } from "@/lib/variant/types";
+import { MODE_LABEL, modeRank, needsReview, wrongForm, type KazusaMode } from "@/lib/variant/kazusa";
+import type { ConversionResult, ResultCandidate, VerifySource, VersionRow } from "@/lib/variant/types";
 
 const INITIAL_VISIBLE = 4;
 
@@ -44,7 +45,7 @@ const VERIFY_BADGE: Record<Exclude<VerificationSummary, "none">, { text: string;
     run: true,
   },
   partial: {
-    text: "外部照合で一部の候補を確認できませんでした",
+    text: "外部照合で確認できなかった項目があります",
     className: "border border-amber-500 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
     run: true,
   },
@@ -54,9 +55,25 @@ const VERIFY_BADGE: Record<Exclude<VerificationSummary, "none">, { text: string;
   },
 };
 
-function VerifyBadge({ summary, onVerify }: { summary: VerificationSummary; onVerify?: () => void }) {
+function VerifyBadge({
+  summary,
+  retryable,
+  onVerify,
+}: {
+  summary: VerificationSummary;
+  /** a source failed to respond; "確認不可" answers from the databases do not change on a rerun */
+  retryable: boolean;
+  onVerify?: () => void;
+}) {
   if (summary === "none") return null;
-  const b = VERIFY_BADGE[summary];
+  const base = VERIFY_BADGE[summary];
+  const settled = (summary === "unavailable" || summary === "partial") && !retryable;
+  const b =
+    settled && summary === "unavailable"
+      ? { ...base, text: "外部データベースではこの位置を照合できません（データベースの対象外）", run: false }
+      : settled
+        ? { ...base, run: false }
+        : base;
   const Icon = summary === "mismatch" ? OctagonX : summary === "pending" ? Loader2 : summary === "match" ? ShieldCheck : CircleAlert;
   return (
     <>
@@ -73,8 +90,13 @@ function VerifyBadge({ summary, onVerify }: { summary: VerificationSummary; onVe
   );
 }
 
-export function effectiveStatus(r: ConversionResult, v: ResultVerification | undefined): ConversionResult["status"] {
-  return r.status === "ok" && hasMismatch(v) ? "warning" : r.status;
+export function effectiveStatus(
+  r: ConversionResult,
+  v: ResultVerification | undefined,
+  mode: KazusaMode | null | undefined,
+): ConversionResult["status"] {
+  if (r.status !== "ok") return r.status;
+  return hasMismatch(v) || (mode && needsReview(r.candidates, mode)) ? "warning" : "ok";
 }
 
 function VersionTable({ rows }: { rows: VersionRow[] }) {
@@ -143,6 +165,73 @@ function VersionTable({ rows }: { rows: VersionRow[] }) {
   );
 }
 
+function sourceVerdict(s: ReturnType<typeof candidateChecks>[VerifySource]): { text: string; className: string } {
+  if (!s) return { text: "未照合", className: "text-muted-foreground" };
+  if (s.state === "pending") return { text: "照合中", className: "text-muted-foreground" };
+  if (s.state === "error" || !s.check) return { text: "確認不可", className: "text-amber-700 dark:text-amber-400" };
+  const o = [s.check.forward, s.check.reverse].filter((x) => x !== undefined);
+  if (o.some((x) => x.status === "mismatch")) return { text: "不一致", className: "font-medium text-destructive" };
+  if (o.length && o.every((x) => x.status === "match")) return { text: "一致", className: "text-emerald-700 dark:text-emerald-400" };
+  return { text: "一部確認不可", className: "text-amber-700 dark:text-amber-400" };
+}
+
+function SameSiteTable({
+  rows,
+  gene,
+  verification,
+}: {
+  rows: { c: ResultCandidate; i: number }[];
+  gene: string;
+  verification?: ResultVerification;
+}) {
+  return (
+    <details className="rounded-lg border">
+      <summary className="cursor-pointer px-3 py-2 text-sm font-medium select-none">
+        同じ位置に重なる {gene} の他の転写産物 {rows.length} 件（一覧を表示）
+      </summary>
+      <div className="space-y-2 border-t px-3 py-2">
+        <p className="text-xs text-muted-foreground">
+          ゲノム位置で入力した場合、転写産物（スプライシング型）ごとに変わるのは c. 番号だけで、hg38 の位置と依頼書に書く内容は同じです。そのため、代表の 1 件（MANE Select があればそれ）だけを上に詳しく表示し、残りをこの一覧にまとめています。外部照合で不一致がある転写産物と、別の遺伝子の転写産物は、まとめずに上に表示します。
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[30rem] text-sm">
+            <thead className="text-xs whitespace-nowrap text-muted-foreground">
+              <tr>
+                <th className="py-1 pr-3 text-left font-medium">転写産物</th>
+                <th className="py-1 pr-3 text-left font-medium">c. 表記</th>
+                {SOURCES.map((s) => (
+                  <th key={s.id} className="py-1 pr-3 text-left font-medium">
+                    {s.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ c, i }) => {
+                const checks = candidateChecks(verification, i);
+                return (
+                  <tr key={`${c.transcript}-${i}`} className="border-t align-top">
+                    <td className="py-1 pr-3 font-mono whitespace-nowrap">{c.transcript}</td>
+                    <td className="py-1 pr-3 font-mono break-all">{c.hgvsC ?? "—"}</td>
+                    {SOURCES.map((s) => {
+                      const v = sourceVerdict(checks[s.id]);
+                      return (
+                        <td key={s.id} className={cn("py-1 pr-3 text-xs whitespace-nowrap", v.className)}>
+                          {v.text}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 export function ResultCard({
   result,
   mode,
@@ -156,17 +245,25 @@ export function ResultCard({
 }) {
   const [showAll, setShowAll] = useState(false);
   const [showMismatched, setShowMismatched] = useState(false);
-  const status = STATUS[effectiveStatus(result, verification)];
+  const status = STATUS[effectiveStatus(result, verification, mode)];
   const indexed = result.candidates
     .map((c, i) => ({ c, i }))
     .sort((a, b) => modeRank(a.c, mode) - modeRank(b.c, mode));
   const matched = indexed.filter(({ c }) => !c.refCheck || c.refCheck.ok);
   const mismatched = indexed.filter(({ c }) => c.refCheck && !c.refCheck.ok);
-  const primary = matched.length ? matched : mismatched;
+  const pool = matched.length ? matched : mismatched;
   const secondary = matched.length ? mismatched : [];
-  const visible = showAll ? primary : primary.slice(0, INITIAL_VISIBLE);
   const mapped = result.format !== undefined && result.format > 1;
+  // Genomic input: every overlapping transcript gives the same hg38 position and request entry,
+  // so only one representative (plus anything that needs attention) is shown as a full card.
+  const lead = result.format === 1 && pool.length > 1 ? (pool.find(({ c }) => c.mane) ?? pool[0]) : undefined;
+  const primary = lead
+    ? pool.filter((x) => x === lead || x.c.gene !== lead.c.gene || hasMismatch(verification, x.i))
+    : pool;
+  const grouped = lead ? pool.filter((x) => !primary.includes(x)) : [];
+  const visible = showAll ? primary : primary.slice(0, INITIAL_VISIBLE);
   const external = hasMismatch(verification);
+  const formFix = mode && result.status !== "error" ? wrongForm(result.candidates, mode) : undefined;
 
   return (
     <Card>
@@ -176,7 +273,17 @@ export function ResultCard({
             <status.icon data-icon="inline-start" />
             {status.label}
           </Badge>
-          <VerifyBadge summary={verificationSummary(result, verification)} onVerify={onVerify} />
+          {formFix && (
+            <Badge variant="destructive">
+              <CircleAlert data-icon="inline-start" />
+              区分エラー：{MODE_LABEL[formFix]}の依頼書へ
+            </Badge>
+          )}
+          <VerifyBadge
+            summary={verificationSummary(result, verification)}
+            retryable={SOURCES.some(({ id }) => verification?.[id]?.state === "error")}
+            onVerify={onVerify}
+          />
           {result.formatLabel && <Badge variant="outline">{result.formatLabel}</Badge>}
           {result.candidates.length > 1 && (
             <span className="text-xs text-muted-foreground">候補 {result.candidates.length} 件</span>
@@ -229,6 +336,9 @@ export function ResultCard({
             <ChevronDown data-icon="inline-start" className={showAll ? "rotate-180" : ""} />
             {showAll ? "候補を折りたたむ" : `残り ${primary.length - INITIAL_VISIBLE} 件の候補を表示`}
           </Button>
+        )}
+        {lead && grouped.length > 0 && (
+          <SameSiteTable rows={grouped} gene={lead.c.gene} verification={verification} />
         )}
         {secondary.length > 0 && (
           <div className="space-y-3">

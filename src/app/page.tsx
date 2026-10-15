@@ -1,10 +1,14 @@
 import { Dna } from "lucide-react";
 import { Converter } from "@/components/converter";
+import { version } from "../../package.json";
 
 export default function Home() {
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 lg:py-10">
-      <header className="mb-8 flex items-start gap-3">
+      <header className="relative mb-8 flex items-start gap-3 pr-16">
+        <span className="absolute top-0 right-0 rounded-full border px-2 py-0.5 font-mono text-xs text-muted-foreground">
+          v{version}
+        </span>
         <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <Dna className="size-6" />
         </div>

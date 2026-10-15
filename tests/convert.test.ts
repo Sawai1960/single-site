@@ -32,7 +32,7 @@ vi.mock("../src/lib/variant/remote", async (importOriginal) => {
 });
 
 const { convertOne, shiftGenomic3 } = await import("../src/lib/variant/convert");
-const { kazusaCheck, requestText, sangerLine } = await import("../src/lib/variant/kazusa");
+const { kazusaCheck, needsReview, requestText, sangerLine } = await import("../src/lib/variant/kazusa");
 
 afterAll(() => {
   if (RECORD) writeFileSync(FIXTURE, JSON.stringify(recorded, null, 1) + "\n");
@@ -340,8 +340,10 @@ describe("かずさの依頼書（区分ごとのチェック）", () => {
     expect(c).toMatchObject({ gene: "CYBB", chrom: "chrX", start: 37783542, end: 37783542 });
     expect(c.refCheck?.ok).toBe(true);
     expect(sangerLine(c)).toEqual({ text: "CYBB chrX:37783542 NM_000397.4 c.194T>G", missing: [] });
-    expect(kazusaCheck(c, "sanger").issues).toEqual([]);
+    expect(kazusaCheck(c, "sanger")).toMatchObject({ issues: [], review: false });
     expect(kazusaCheck(c, "cancer60").issues.join()).toContain("含まれません");
+    expect(needsReview(r.candidates, "cancer60")).toBe(true);
+    expect(needsReview(r.candidates, "sanger")).toBe(false);
   });
 
   it("Sanger: ゲノム位置と塩基変化の入力からも c. 表記の変化まで入る", async () => {
@@ -380,13 +382,15 @@ describe("かずさの依頼書（区分ごとのチェック）", () => {
     expect(c.gene).toBe("MLH1");
     expect(c.refCheck?.ok).toBe(true);
     expect(kazusaCheck(c, "sanger").issues.join()).toContain("対象（60 遺伝子）です");
+    expect(kazusaCheck(c, "sanger").review).toBe(true);
   });
 
   it("がん60: 遺伝子名＋9桁を作り、対象内なら注意を出さない", async () => {
     const r = await convertOne("NM_007294.4:c.68_69del");
     const c = r.candidates[0];
     expect(requestText(c, "cancer60")).toBe("BRCA1 043124030-043124031");
-    expect(kazusaCheck(c, "cancer60")).toEqual({ cancer60: true, issues: [] });
+    expect(kazusaCheck(c, "cancer60")).toEqual({ cancer60: true, issues: [], review: false });
+    expect(needsReview(r.candidates, "cancer60")).toBe(false);
   });
 
   it("がん60: TP53 p.Arg175His と hg38 / hg19 の位置が一致する", async () => {
@@ -407,11 +411,13 @@ describe("かずさの依頼書（区分ごとのチェック）", () => {
   ])("がん60: 対象外の %s に注意を出す", async (input, message) => {
     const r = await convertOne(input);
     expect(kazusaCheck(r.candidates[0], "cancer60").issues.join()).toContain(message);
+    expect(kazusaCheck(r.candidates[0], "cancer60").review).toBe(true);
   });
 
   it("がん60: SDHA に相同配列の注意を出す", async () => {
     const r = await convertOne("SDHA:c.91");
     expect(r.candidates[0].warnings.join()).toContain("相同領域");
+    expect(kazusaCheck(r.candidates[0], "cancer60").review).toBe(true);
   });
 });
 

@@ -1,6 +1,7 @@
 import { aa3, revComp, translateCodon } from "./codon";
 import { chromToNC } from "./chrom";
 import { locusText } from "./format";
+import { HOMOLOGOUS_GENES } from "./kazusa";
 import { cdsLengthAA, cPosToGenome, cToTx, formatCPos, genomeToC, MappingError, txToC } from "./mapping";
 import { ParseError, normalizeInput, parseQuery } from "./parse";
 import {
@@ -31,7 +32,6 @@ import type {
   VersionRow,
 } from "./types";
 
-const HOMOLOGOUS_GENES = new Set(["PMS2", "BMPR1A", "SDHD", "CHEK2", "NF1", "SDHA"]);
 const MAX_GENOMIC_TRANSCRIPTS = 20;
 /** Bases fetched beyond a deletion/duplication/insertion so it can be shifted to its HGVS 3' position. */
 const SHIFT_WINDOW = 200;

@@ -80,13 +80,19 @@ export function verificationSummary(r: ConversionResult, v: ResultVerification |
   const states = SOURCES.map(({ id }) => v?.[id]);
   if (states.some((s) => s?.state === "pending")) return "pending";
   if (states.every((s) => !s)) return "unchecked";
-  const matched = idx.filter((i) =>
-    states.some(
-      (s) => s?.state === "done" && (s.checks[i]?.forward?.status === "match" || s.checks[i]?.reverse?.status === "match"),
-    ),
-  ).length;
-  if (!matched) return "unavailable";
-  return matched === idx.length && states.every((s) => s?.state !== "error") ? "match" : "partial";
+  const outcomes = (s: SourceState | undefined, i: number) => {
+    const c = s?.state === "done" ? s.checks[i] : null;
+    return c ? [c.forward, c.reverse].filter((o) => o !== undefined) : [];
+  };
+  const anyMatch = idx.some((i) => states.some((s) => outcomes(s, i).some((o) => o.status === "match")));
+  if (!anyMatch) return "unavailable";
+  const allMatch = idx.every((i) =>
+    states.every((s) => {
+      const o = outcomes(s, i);
+      return o.length > 0 && o.every((x) => x.status === "match");
+    }),
+  );
+  return allMatch ? "match" : "partial";
 }
 
 const STATUS_TEXT = { match: "一致", mismatch: "不一致", unavailable: "確認不可" } as const;
