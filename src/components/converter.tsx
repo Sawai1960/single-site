@@ -322,22 +322,29 @@ export function Converter() {
           <div>
             <h2 className="text-lg font-semibold">入力の確認</h2>
             <p className="text-sm text-muted-foreground">
-              依頼書に書く遺伝子と位置の一覧です。入力した変異と合っているか確認してください。外部データベースとの照合は、確認している間に進めています。
+              依頼書に書く遺伝子と位置の一覧です。入力した変異と合っているか確認してください。外部データベースとの照合は、確認している間に進めています。照合が終わると詳しい結果を表示できます。
             </p>
           </div>
           <SummaryTable results={results} mode={mode} statuses={statuses} summaries={summaries} />
           <div className="flex flex-wrap items-center gap-2">
             {!revealed && (
-              <Button size="lg" onClick={reveal}>
-                <ChevronDown data-icon="inline-start" />
-                この内容で詳しい結果を表示する
+              <Button size="lg" onClick={reveal} disabled={checking > 0}>
+                {checking > 0 ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <ChevronDown data-icon="inline-start" />}
+                {checking > 0
+                  ? `外部照合中…（${started - checking}/${started} 件完了）`
+                  : "この内容で詳しい結果を表示する"}
               </Button>
             )}
             <Button variant="outline" size="lg" onClick={backToInput}>
               <PencilLine data-icon="inline-start" />
               入力に戻って直す
             </Button>
-            {checking > 0 && (
+            {!revealed && checking > 0 && (
+              <Button variant="link" size="sm" className="text-muted-foreground" onClick={reveal}>
+                照合を待たずに表示する
+              </Button>
+            )}
+            {revealed && checking > 0 && (
               <span className="text-xs text-muted-foreground">
                 外部照合中…（{started - checking}/{started} 件完了）
               </span>
