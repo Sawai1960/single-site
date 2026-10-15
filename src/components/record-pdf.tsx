@@ -58,6 +58,10 @@ function sourceText(v: ResultVerification | undefined, ci: number, source: (type
   return parts.join("・") || "—";
 }
 
+function shortHgvs(s: string): string {
+  return s.replace(/^[A-Z]{2}_\d+(\.\d+)?:/, "");
+}
+
 function selfText(c: ResultCandidate): string {
   if (!c.selfCheck) return "—";
   return c.selfCheck.ok ? "一致" : "不一致";
@@ -267,11 +271,11 @@ function RecordSheet({
 
       <h2 className="mt-4 mb-1 text-[11pt] font-bold">2. 変換結果と照合結果</h2>
       <p className="mb-1">
-        本ツール内の往復: 同じアライメントで c. → hg38 と hg38 → c. を計算し直した結果。NCBI・Ensembl: 外部データベースでの順変換（c. → hg38）と逆変換（hg38 → c.）の照合結果。
+        往復: 本ツール内で、同じアライメントを使って c. → hg38 と hg38 → c. を計算し直した結果。NCBI・Ensembl: 外部データベースでの順変換（順: c. → hg38）と逆変換（逆: hg38 → c.）の照合結果。hg38 の位置は、上が座標、下が依頼書用の 9 桁です。2 つ目以降の候補は簡潔に表示し、位置が先頭の候補と同じときは「同上」としています。
       </p>
       {results.map((r, i) => (
-        <section key={i} className="mt-2 break-inside-avoid">
-          <div className="font-semibold">
+        <section key={i} className="mt-2">
+          <div className="font-semibold break-after-avoid">
             #{i + 1} <span className="font-mono">{r.input}</span>
             <span className="ml-2 font-normal">
               {r.formatLabel && `${r.formatLabel} / `}
@@ -286,9 +290,8 @@ function RecordSheet({
                   <th className={th}>転写産物</th>
                   <th className={th}>遺伝子</th>
                   <th className={th}>hg38 の位置</th>
-                  <th className={th}>9 桁</th>
                   <th className={th}>c. / p. 表記</th>
-                  <th className={th}>ツール内の往復</th>
+                  <th className={`${th} whitespace-nowrap`}>往復</th>
                   {SOURCES.map((s) => (
                     <th key={s.id} className={th}>
                       {s.label}
@@ -297,31 +300,44 @@ function RecordSheet({
                 </tr>
               </thead>
               <tbody>
-                {r.candidates.map((c, ci) => (
-                  <tr key={ci}>
-                    <td className={`${td} font-mono`}>
-                      {c.transcript || "—"}
-                      {c.mane && <span className="block font-sans">{c.mane}</span>}
-                      {c.historical && <span className="block font-sans">旧バージョン</span>}
-                    </td>
-                    <td className={td}>{c.gene || "—"}</td>
-                    <td className={`${td} font-mono whitespace-nowrap`}>{locusText(c.chrom, c.start, c.end)}</td>
-                    <td className={`${td} font-mono whitespace-nowrap`}>
-                      {ninePad(c.start)}
-                      {c.end !== c.start && `–${ninePad(c.end)}`}
-                    </td>
-                    <td className={`${td} font-mono break-all`}>
-                      {c.hgvsC ?? "—"}
-                      {c.hgvsP && <span className="block">{c.hgvsP}</span>}
-                    </td>
-                    <td className={td}>{selfText(c)}</td>
-                    {SOURCES.map((s) => (
-                      <td key={s.id} className={td}>
-                        {sourceText(verification[i], ci, s.id)}
+                {r.candidates.map((c, ci) => {
+                  const first = r.candidates[0];
+                  const same = ci > 0 && c.chrom === first.chrom && c.start === first.start && c.end === first.end;
+                  return (
+                    <tr key={ci} className={ci > 0 ? "break-inside-avoid text-[8pt]" : "break-inside-avoid"}>
+                      <td className={`${td} font-mono whitespace-nowrap`}>
+                        {c.transcript || "—"}
+                        {ci === 0 && c.hgvsP && c.protein && <span className="block">{c.protein}</span>}
+                        {c.mane && <span className="block font-sans">{c.mane}</span>}
+                        {c.historical && <span className="block font-sans">旧バージョン</span>}
                       </td>
-                    ))}
-                  </tr>
-                ))}
+                      <td className={td}>{c.gene || "—"}</td>
+                      <td className={`${td} font-mono whitespace-nowrap`}>
+                        {same ? (
+                          <span className="font-sans">同上</span>
+                        ) : (
+                          <>
+                            {locusText(c.chrom, c.start, c.end)}
+                            <span className="block font-semibold">
+                              {ninePad(c.start)}
+                              {c.end !== c.start && `–${ninePad(c.end)}`}
+                            </span>
+                          </>
+                        )}
+                      </td>
+                      <td className={`${td} font-mono break-words`}>
+                        {c.hgvsC ? shortHgvs(c.hgvsC) : "—"}
+                        {ci === 0 && c.hgvsP && <span className="block">{shortHgvs(c.hgvsP)}</span>}
+                      </td>
+                      <td className={`${td} whitespace-nowrap`}>{selfText(c)}</td>
+                      {SOURCES.map((s) => (
+                        <td key={s.id} className={td}>
+                          {sourceText(verification[i], ci, s.id)}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
