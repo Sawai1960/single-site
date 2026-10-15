@@ -1,5 +1,6 @@
 import { aa3, revComp, translateCodon } from "./codon";
 import { chromToNC } from "./chrom";
+import { locusText } from "./format";
 import { cdsLengthAA, cPosToGenome, cToTx, formatCPos, genomeToC, MappingError, txToC } from "./mapping";
 import { ParseError, normalizeInput, parseQuery } from "./parse";
 import {
@@ -30,9 +31,10 @@ import type {
   VersionRow,
 } from "./types";
 
-const HOMOLOGOUS_GENES = new Set(["PMS2", "BMPR1A", "SDHD", "CHEK2", "NF1"]);
+const HOMOLOGOUS_GENES = new Set(["PMS2", "BMPR1A", "SDHD", "CHEK2", "NF1", "SDHA"]);
 const MAX_GENOMIC_TRANSCRIPTS = 20;
-const NGS_SMALL_VARIANT_LIMIT = 20;
+/** Bases fetched beyond a deletion/duplication/insertion so it can be shifted to its HGVS 3' position. */
+const SHIFT_WINDOW = 200;
 
 const FORMAT_LABEL: Record<FormatNo, string> = {
   1: "形式1: ゲノム位置",
@@ -268,6 +270,32 @@ function hgvsGChange(
   }
 }
 
+/**
+ * Moves a deletion/duplication (bases lo..hi) or an insertion of `ins` between lo and lo + 1 as far
+ * towards the + strand 3' end as the sequence allows, as HGVS g. notation requires. A c. description
+ * is shifted along the transcript instead, which points the other way for − strand genes.
+ */
+export function shiftGenomic3(
+  base: (pos: number) => string | undefined,
+  kind: "range" | "insertion",
+  lo: number,
+  hi: number,
+  ins = "",
+): { lo: number; hi: number; ins: string } {
+  if (kind === "range") {
+    for (let next = base(hi + 1); next && next === base(lo); next = base(hi + 1)) {
+      lo++;
+      hi++;
+    }
+    return { lo, hi, ins };
+  }
+  for (let next = base(lo + 1); ins && next === ins[0]; next = base(lo + 1)) {
+    ins = ins.slice(1) + ins[0];
+    lo++;
+  }
+  return { lo, hi: lo + 1, ins };
+}
+
 type CdnaQuery = Extract<ParsedQuery, { kind: "cdna" }>;
 type ProteinQuery = Extract<ParsedQuery, { kind: "protein" }>;
 
@@ -352,10 +380,17 @@ async function convertCdna(
   }
   await ensureDuplicateContext(idx, mapped.map((m) => m.t));
 
+  const insSeq = q.altAllele && /^[ACGT]+$/.test(q.altAllele) ? q.altAllele : undefined;
+  const shiftKind =
+    q.varType === "deletion" || q.varType === "duplication"
+      ? "range"
+      : q.varType === "insertion" && insSeq
+        ? "insertion"
+        : undefined;
   const byChrom = new Map<string, [number, number][]>();
   for (const m of mapped) {
     const arr = byChrom.get(m.t.chrom) ?? [];
-    if (m.hi - m.lo < 300) arr.push([m.lo, m.hi]);
+    if (m.hi - m.lo < 300) arr.push([m.lo, m.hi + (shiftKind ? SHIFT_WINDOW : 0)]);
     byChrom.set(m.t.chrom, arr);
   }
   const seqs = new Map<string, SeqAccessor | null>();
@@ -390,18 +425,37 @@ async function convertCdna(
         );
       }
     }
-    const len = hi - lo + 1;
+    let gLo = lo;
+    let gHi = hi;
+    let gChange = hgvsGChange(q, t.strand, gRef);
+    if (acc && shiftKind && hi - lo < 300) {
+      const base = (p: number) => {
+        try {
+          return acc(p, p);
+        } catch {
+          return undefined;
+        }
+      };
+      const ins = insSeq ? (t.strand === "+" ? insSeq : revComp(insSeq)) : "";
+      const s = shiftGenomic3(base, shiftKind, lo, hi, ins);
+      if (s.lo !== lo) {
+        gLo = s.lo;
+        gHi = s.hi;
+        if (shiftKind === "insertion") gChange = `ins${s.ins}`;
+        w.push(
+          `同じ配列の繰り返しの中にあるため、hg38 の位置は HGVS の g. 表記の規則（+鎖の 3' 側に寄せる）で示しています。` +
+            `c. 表記の番号から直接換算した位置は ${locusText(t.chrom, lo, hi)} で、同じ変異を指します`,
+        );
+      }
+    }
+    const len = gHi - gLo + 1;
     if (["deletion", "duplication", "delins", "inversion"].includes(q.varType) && len > 1) {
       w.push(
         `${len} 塩基の範囲です。依頼書には範囲内のどの位置を指定しても構いません。特記事項欄に変異の内容（${cText}）を記入してください`,
       );
     }
-    if (len > NGS_SMALL_VARIANT_LIMIT && q.varType !== "position") {
-      w.push(`${NGS_SMALL_VARIANT_LIMIT} 塩基を超える欠失・重複などは、精度を担保できず確定に至らない場合があります`);
-    }
     const nc = chromToNC(t.chrom);
-    const gPos = lo === hi ? `${lo}` : `${lo}_${hi}`;
-    const gChange = hgvsGChange(q, t.strand, gRef);
+    const gPos = gLo === gHi ? `${gLo}` : `${gLo}_${gHi}`;
     const points = [{ pos: cPosToGenome(t, q.start).genomic, c: formatCPos(q.start) }];
     if (q.end !== q.start) points.push({ pos: cPosToGenome(t, q.end).genomic, c: formatCPos(q.end) });
     return {
@@ -412,11 +466,11 @@ async function convertCdna(
       historical: t.hist,
       chrom: t.chrom,
       strand: t.strand,
-      start: lo,
-      end: hi,
+      start: gLo,
+      end: gHi,
       hgvsC: `${t.acc}:${cText}`,
       hgvsG: nc ? `${nc}:g.${gPos}${gChange}` : undefined,
-      genomicRef: gRef,
+      genomicRef: gLo === lo ? gRef : acc ? acc(gLo, gHi) : undefined,
       genomicAlt:
         q.varType === "substitution" && q.altAllele
           ? t.strand === "+"
@@ -425,7 +479,7 @@ async function convertCdna(
           : undefined,
       refCheck,
       warnings: [...new Set(w)],
-      ucscUrl: ucscUrl(t.chrom, lo, hi),
+      ucscUrl: ucscUrl(t.chrom, gLo, gHi),
       verify: { forward: [cdnaForwardCheck(q, t, lo, hi, gRef)], points },
     } satisfies ResultCandidate;
   });

@@ -10,6 +10,7 @@ import { CandidateView } from "@/components/candidate-view";
 import { candidateChecks, hasMismatch, type ResultVerification } from "@/components/verification";
 import { cn } from "@/lib/utils";
 import { formatPos, ninePad } from "@/lib/variant/format";
+import { modeRank, type KazusaMode } from "@/lib/variant/kazusa";
 import type { ConversionResult, VersionRow } from "@/lib/variant/types";
 
 const INITIAL_VISIBLE = 4;
@@ -92,17 +93,21 @@ function VersionTable({ rows }: { rows: VersionRow[] }) {
 
 export function ResultCard({
   result,
+  mode,
   verification,
   onVerify,
 }: {
   result: ConversionResult;
+  mode?: KazusaMode;
   verification?: ResultVerification;
   onVerify?: () => void;
 }) {
   const [showAll, setShowAll] = useState(false);
   const [showMismatched, setShowMismatched] = useState(false);
   const status = STATUS[effectiveStatus(result, verification)];
-  const indexed = result.candidates.map((c, i) => ({ c, i }));
+  const indexed = result.candidates
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => modeRank(a.c, mode) - modeRank(b.c, mode));
   const matched = indexed.filter(({ c }) => !c.refCheck || c.refCheck.ok);
   const mismatched = indexed.filter(({ c }) => c.refCheck && !c.refCheck.ok);
   const primary = matched.length ? matched : mismatched;
@@ -160,6 +165,7 @@ export function ResultCard({
           <CandidateView
             key={`${c.transcript}-${c.chrom}-${c.start}-${i}`}
             c={c}
+            mode={mode}
             mapped={mapped}
             checks={candidateChecks(verification, i)}
             onVerify={onVerify}
@@ -182,6 +188,7 @@ export function ResultCard({
                 <CandidateView
                   key={`mm-${c.transcript}-${c.chrom}-${c.start}-${i}`}
                   c={c}
+                  mode={mode}
                   dimmed
                   mapped={mapped}
                   checks={candidateChecks(verification, i)}

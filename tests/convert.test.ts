@@ -31,7 +31,8 @@ vi.mock("../src/lib/variant/remote", async (importOriginal) => {
   };
 });
 
-const { convertOne } = await import("../src/lib/variant/convert");
+const { convertOne, shiftGenomic3 } = await import("../src/lib/variant/convert");
+const { kazusaCheck, requestText, sangerLine } = await import("../src/lib/variant/kazusa");
 
 afterAll(() => {
   if (RECORD) writeFileSync(FIXTURE, JSON.stringify(recorded, null, 1) + "\n");
@@ -159,9 +160,16 @@ describe("照合と注意表示", () => {
   it("2 塩基以上の欠失は範囲指定と特記事項の注意を出す", async () => {
     const r = await convertOne("NM_007294.4:c.68_69delAG");
     const c = r.candidates[0];
-    expect([c.start, c.end]).toEqual([43124028, 43124029]);
     expect(c.refCheck?.ok).toBe(true);
     expect(c.warnings.join()).toContain("特記事項");
+  });
+
+  it("− 鎖遺伝子の繰り返し内の欠失は g. 表記の 3' 側に寄せる（NCBI SPDI NC_000017.11:43124027:CTCT:CT）", async () => {
+    const r = await convertOne("NM_007294.4:c.68_69delAG");
+    const c = r.candidates[0];
+    expect([c.start, c.end]).toEqual([43124030, 43124031]);
+    expect(c.hgvsG).toBe("NC_000017.11:g.43124030_43124031del");
+    expect(c.warnings.join()).toContain("chr17:43124028-43124029");
   });
 
   it("偽常染色体領域の SHOX は chrX と chrY の両方を返し注意を出す", async () => {
@@ -300,6 +308,110 @@ describe("ミトコンドリア DNA", () => {
   it("hg19 の chrM は UCSC の NC_001807 と rCRS の番号の違いを警告する", async () => {
     const r = await convertOne("hg19 chrM:3243");
     expect(r.candidates[0].warnings.join()).toContain("NC_001807");
+  });
+});
+
+describe("HGVS g. の 3' 側への移動", () => {
+  const at = (seq: string) => (p: number) => seq[p - 1];
+
+  it("欠失・重複は同じ塩基が続く限り右へ動かす", () => {
+    // 1-based: A C T C T G
+    expect(shiftGenomic3(at("ACTCTG"), "range", 2, 3)).toMatchObject({ lo: 4, hi: 5 });
+    expect(shiftGenomic3(at("GAAAAC"), "range", 2, 2)).toMatchObject({ lo: 5, hi: 5 });
+    expect(shiftGenomic3(at("GACTT"), "range", 2, 3)).toMatchObject({ lo: 2, hi: 3 });
+  });
+
+  it("挿入は挿入配列を回しながら右へ動かす", () => {
+    // insert CT between 1 and 2 of G C T C T A → after 5, still CT
+    expect(shiftGenomic3(at("GCTCTA"), "insertion", 1, 2, "CT")).toEqual({ lo: 5, hi: 6, ins: "CT" });
+    // insert A between 1 and 2 of G A A C → after 3
+    expect(shiftGenomic3(at("GAAC"), "insertion", 1, 2, "A")).toEqual({ lo: 3, hi: 4, ins: "A" });
+  });
+
+  it("読み込んだ配列の端で止まる", () => {
+    expect(shiftGenomic3(at("GAAA"), "range", 2, 2)).toMatchObject({ lo: 4, hi: 4 });
+  });
+});
+
+describe("かずさの依頼書（区分ごとのチェック）", () => {
+  it("Sanger: 依頼書の記載例 CYBB NM_000397.4:c.194T>G → chrX:37783542", async () => {
+    const r = await convertOne("NM_000397.4:c.194T>G");
+    const c = r.candidates[0];
+    expect(c).toMatchObject({ gene: "CYBB", chrom: "chrX", start: 37783542, end: 37783542 });
+    expect(c.refCheck?.ok).toBe(true);
+    expect(sangerLine(c)).toEqual({ text: "CYBB chrX:37783542 NM_000397.4 c.194T>G", missing: [] });
+    expect(kazusaCheck(c, "sanger").issues).toEqual([]);
+    expect(kazusaCheck(c, "cancer60").issues.join()).toContain("含まれません");
+  });
+
+  it("Sanger: ゲノム位置と塩基変化の入力からも c. 表記の変化まで入る", async () => {
+    const r = await convertOne("hg38, chrX:37783542 T>G");
+    const c = r.candidates.find((x) => x.transcript.startsWith("NM_000397"))!;
+    expect(sangerLine(c)?.text).toMatch(/^CYBB chrX:37783542 NM_000397\.\d+ c\.194T>G$/);
+    expect(sangerLine(c)?.missing).toEqual([]);
+  });
+
+  it("Sanger: かずさの資料の例 ATP7B NM_000053.3:c.2903T>C → hg38 chr13:51946441", async () => {
+    const r = await convertOne("NM_000053.3:c.2903T>C");
+    expect(r.candidates[0]).toMatchObject({ gene: "ATP7B", chrom: "chr13", start: 51946441 });
+    expect(r.candidates[0].refCheck?.ok).toBe(true);
+  });
+
+  it("Sanger: hg19 の位置だけの入力は c. 表記の変化を補うよう示す", async () => {
+    const r = await convertOne("hg19, chr13:52520577");
+    const c = r.candidates.find((x) => x.gene === "ATP7B")!;
+    expect(c.start).toBe(51946441);
+    expect(sangerLine(c)?.missing).toEqual(["c. 表記の配列の変化"]);
+  });
+
+  it("Sanger: p. 表記の入力は p. を入れ、c. 表記を補うよう示す", async () => {
+    const r = await convertOne("CYBB p.Met65Arg");
+    const c = r.candidates[0];
+    expect(c.start).toBeLessThanOrEqual(37783542);
+    expect(c.end).toBeGreaterThanOrEqual(37783542);
+    const line = sangerLine(c)!;
+    expect(line.text).toContain("Met65Arg");
+    expect(line.missing).toEqual(["c. 表記"]);
+  });
+
+  it("Sanger: がん関連60遺伝子ならがんの依頼書を案内する", async () => {
+    const r = await convertOne("NM_000249.4:c.350C>T");
+    const c = r.candidates[0];
+    expect(c.gene).toBe("MLH1");
+    expect(c.refCheck?.ok).toBe(true);
+    expect(kazusaCheck(c, "sanger").issues.join()).toContain("がん関連60遺伝子です");
+  });
+
+  it("がん60: 遺伝子名＋9桁を作り、対象内なら注意を出さない", async () => {
+    const r = await convertOne("NM_007294.4:c.68_69del");
+    const c = r.candidates[0];
+    expect(requestText(c, "cancer60")).toBe("BRCA1 043124030-043124031");
+    expect(kazusaCheck(c, "cancer60")).toEqual({ cancer60: true, issues: [] });
+  });
+
+  it("がん60: TP53 p.Arg175His と hg38 / hg19 の位置が一致する", async () => {
+    const p = await convertOne("TP53 p.Arg175His");
+    const g38 = await convertOne("hg38, chr17:7675088");
+    const g19 = await convertOne("hg19, chr17:7578406");
+    expect(p.candidates[0].gene).toBe("TP53");
+    expect(p.candidates[0].start).toBeLessThanOrEqual(7675088);
+    expect(p.candidates[0].end).toBeGreaterThanOrEqual(7675088);
+    expect(g19.candidates[0].start).toBe(7675088);
+    expect(g38.candidates.some((c) => c.gene === "TP53" && c.hgvsC?.endsWith("c.524"))).toBe(true);
+  });
+
+  it.each([
+    ["NM_007294.4:c.-20", "UTR"],
+    ["NM_007294.4:c.80+20", "イントロン側へ 20 塩基"],
+    ["NM_007294.4:c.68_80del", "13 塩基の欠失・挿入"],
+  ])("がん60: 対象外の %s に注意を出す", async (input, message) => {
+    const r = await convertOne(input);
+    expect(kazusaCheck(r.candidates[0], "cancer60").issues.join()).toContain(message);
+  });
+
+  it("がん60: SDHA に相同配列の注意を出す", async () => {
+    const r = await convertOne("SDHA:c.91");
+    expect(r.candidates[0].warnings.join()).toContain("相同領域");
   });
 });
 

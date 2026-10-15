@@ -1,3 +1,4 @@
+import { kazusaCheck, MODE_LABEL, requestText, type KazusaMode } from "./kazusa";
 import type { ConversionResult } from "./types";
 
 export function ninePad(n: number): string {
@@ -30,6 +31,7 @@ function versionsText(r: ConversionResult): string {
 
 export function resultsToCsv(
   results: ConversionResult[],
+  mode: KazusaMode,
   external?: (resultIndex: number, candidateIndex: number) => string,
 ): string {
   const header = [
@@ -53,12 +55,14 @@ export function resultsToCsv(
     "リファレンス(+鎖)",
     "リファレンス照合",
     "外部照合",
+    `依頼書用表記（${MODE_LABEL[mode]}）`,
+    "区分チェック",
     "注意事項",
   ];
   const rows: string[][] = [header];
   for (const [ri, r] of results.entries()) {
     if (!r.candidates.length) {
-      rows.push([r.input, r.formatLabel ?? "", STATUS_LABEL[r.status], ...Array(17).fill(""), [r.message, ...r.notes].filter(Boolean).join(" / ")]);
+      rows.push([r.input, r.formatLabel ?? "", STATUS_LABEL[r.status], ...Array(header.length - 4).fill(""), [r.message, ...r.notes].filter(Boolean).join(" / ")]);
       continue;
     }
     const versions = versionsText(r);
@@ -84,6 +88,8 @@ export function resultsToCsv(
         c.genomicRef ?? "",
         c.refCheck ? (c.refCheck.ok ? "一致" : `不一致(入力 ${c.refCheck.expected} / hg38 ${c.refCheck.observed})`) : "",
         external?.(ri, ci) ?? "",
+        requestText(c, mode),
+        kazusaCheck(c, mode).issues.join(" / "),
         [...(c.region ? [`ミトコンドリアの領域: ${c.region}`] : []), ...r.notes, ...(versions ? [versions] : []), ...c.warnings].join(" / "),
       ]);
     }

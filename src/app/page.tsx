@@ -11,7 +11,7 @@ export default function Home() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">シングルサイト解析のための HGVS–GRCh38 座標自動変換ツール</h1>
           <p className="mt-1 text-sm text-muted-foreground sm:text-base">
-            HGVS 表記（c.・p.・g.・m.）および遺伝子名で記載されたバリアントを、NCBI RefSeq 転写産物のゲノムアライメントに基づいて GRCh38（hg38）のゲノム座標に変換し、検査依頼書用の 9 桁表記を出力します。がん・難病のシングルサイト解析（家系内解析を含む）における対象座標の特定を支援します。
+            HGVS 表記（c.・p.・g.・m.）および遺伝子名で記載されたバリアントを、NCBI RefSeq 転写産物のゲノムアライメントに基づいて GRCh38（hg38）のゲノム座標に変換し、検査依頼書用の表記（がん関連60遺伝子は遺伝子名＋9 桁、それ以外は Sanger 依頼書用の 1 行）を出力します。がん・難病のシングルサイト解析（家系内解析を含む）における対象座標の特定を支援します。
           </p>
           <p className="mt-2 text-sm font-medium text-foreground/80">
             本ツールは、臨床遺伝専門医による利用を想定した教育・研究支援ツールです。認定遺伝カウンセラー等は座標の確認に使えますが、診断・治療の判断は臨床遺伝専門医が行ってください。ご使用の前に、画面下部の「<a href="#disclaimer" className="underline underline-offset-2">利用上の注意と免責事項</a>」をご確認ください。

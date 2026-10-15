@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRightLeft, Download, Eraser, Loader2, OctagonX } from "lucide-react";
+import { ArrowRightLeft, Download, Eraser, Info, Loader2, OctagonX } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,19 +15,33 @@ import {
   type ResultVerification,
   type SourceState,
 } from "@/components/verification";
+import { cn } from "@/lib/utils";
 import { convertMany } from "@/lib/variant/convert";
 import { resultsToCsv } from "@/lib/variant/format";
+import { MODE_LABEL, SANGER_SITES_PER_FORM, type KazusaMode } from "@/lib/variant/kazusa";
 import { getIndex } from "@/lib/variant/refseq";
 import type { ConversionResult, VerifySource } from "@/lib/variant/types";
 
-const EXAMPLES: { label: string; value: string }[] = [
-  { label: "形式1", value: "hg38, chr4:55113391" },
-  { label: "形式2", value: "NM_002253.2:c.889G>A" },
-  { label: "形式3", value: "NP_443086.1:p.Asp509Glyfs" },
-  { label: "形式4（c.）", value: "KDR:c.889G>A" },
-  { label: "形式4（p.）", value: "KRAS p.G12D" },
-  { label: "hg19", value: "hg19, chr7:55259515" },
-  { label: "ミトコンドリア", value: "m.3243A>G" },
+const EXAMPLES: Record<KazusaMode, { label: string; value: string }[]> = {
+  cancer60: [
+    { label: "形式1", value: "hg38, chr17:7675088" },
+    { label: "形式2", value: "NM_007294.4:c.68_69del" },
+    { label: "形式2", value: "NM_000249.4:c.350C>T" },
+    { label: "形式4（p.）", value: "TP53 p.Arg175His" },
+    { label: "hg19", value: "hg19, chr17:7578406" },
+  ],
+  sanger: [
+    { label: "形式1", value: "hg38, chrX:37783542 T>G" },
+    { label: "形式2", value: "NM_000397.4:c.194T>G" },
+    { label: "形式2", value: "NM_000053.3:c.2903T>C" },
+    { label: "形式4（p.）", value: "CYBB p.Met65Arg" },
+    { label: "hg19", value: "hg19, chr13:52520577" },
+  ],
+};
+
+const MODES: { id: KazusaMode; sub: string; form: string }[] = [
+  { id: "cancer60", sub: "NGS によるシングルサイト解析", form: "依頼書: 遺伝子名＋9桁の位置" },
+  { id: "sanger", sub: "上記以外の遺伝子", form: "依頼書: 遺伝子名・位置・NM 番号・c. 表記を1行で" },
 ];
 
 const MAX_LINES = 200;
@@ -35,6 +49,7 @@ const MAX_LINES = 200;
 const AUTO_VERIFY_RESULTS = 5;
 
 export function Converter() {
+  const [mode, setMode] = useState<KazusaMode | null>(null);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +70,7 @@ export function Converter() {
     .filter(Boolean);
 
   async function run() {
-    if (!lines.length || loading) return;
+    if (!mode || !lines.length || loading) return;
     if (lines.length > MAX_LINES) {
       setError(`一度に変換できるのは ${MAX_LINES} 行までです（現在 ${lines.length} 行）`);
       return;
@@ -96,11 +111,12 @@ export function Converter() {
   }
 
   function downloadCsv() {
-    if (!results) return;
+    if (!results || !mode) return;
     const blob = new Blob(
       [
         resultsToCsv(
           results.map((r, i) => ({ ...r, status: effectiveStatus(r, verification[i]) })),
+          mode,
           (ri, ci) => verificationText(verification[ri], ci),
         ),
       ],
@@ -136,6 +152,44 @@ export function Converter() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">
+                ① 検査の区分を選んでください（必須）
+              </legend>
+              <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="検査の区分">
+                {MODES.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={mode === m.id}
+                    onClick={() => setMode(m.id)}
+                    className={cn(
+                      "flex gap-2.5 rounded-lg border p-3 text-left transition-colors hover:bg-muted/60",
+                      mode === m.id && "border-primary bg-primary/5 ring-1 ring-primary hover:bg-primary/5",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border",
+                        mode === m.id && "border-primary",
+                      )}
+                    >
+                      {mode === m.id && <span className="size-2 rounded-full bg-primary" />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold">{MODE_LABEL[m.id]}</span>
+                      <span className="block text-xs text-muted-foreground">{m.sub}</span>
+                      <span className="block text-xs text-muted-foreground">{m.form}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                かずさ遺伝子検査室の検査案内書（がん関連遺伝子のシングルサイト解析 K110-40 Ver 8、ヒト遺伝子単一エクソン受託解析 K110-6 Ver 9）に基づきます。
+              </p>
+            </fieldset>
+            <div className="pt-1 text-sm font-medium">② 変異を入力してください</div>
             <Textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -145,24 +199,33 @@ export function Converter() {
                   run();
                 }
               }}
-              placeholder={"NM_002253.2:c.889G>A\nNP_443086.1:p.Asp509Glyfs\nKDR:c.889G>A"}
+              placeholder={(mode ? EXAMPLES[mode] : EXAMPLES.cancer60)
+                .slice(1, 4)
+                .map((ex) => ex.value)
+                .join("\n")}
               className="min-h-40 font-mono text-sm"
               spellCheck={false}
               aria-label="変異の位置情報"
             />
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-xs text-muted-foreground">入力例（クリックすると上の欄に入ります）:</span>
-              {EXAMPLES.map((ex) => (
-                <Button key={ex.value} variant="outline" size="xs" onClick={() => addExample(ex.value)}>
-                  <span className="text-muted-foreground">{ex.label}</span>
-                  <span className="font-mono">{ex.value}</span>
-                </Button>
-              ))}
-            </div>
+            {mode && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-xs text-muted-foreground">入力例（クリックすると上の欄に入ります）:</span>
+                {EXAMPLES[mode].map((ex) => (
+                  <Button key={ex.value} variant="outline" size="xs" onClick={() => addExample(ex.value)}>
+                    <span className="text-muted-foreground">{ex.label}</span>
+                    <span className="font-mono">{ex.value}</span>
+                  </Button>
+                ))}
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <Button size="lg" onClick={run} disabled={!lines.length || loading}>
+              <Button size="lg" onClick={run} disabled={!mode || !lines.length || loading}>
                 {loading ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <ArrowRightLeft data-icon="inline-start" />}
-                {loading ? "変換中…" : `hg38 ゲノム位置に変換${lines.length > 1 ? `（${lines.length} 件）` : ""}`}
+                {loading
+                  ? "変換中…"
+                  : !mode
+                    ? "区分を選ぶと変換できます"
+                    : `hg38 ゲノム位置に変換${lines.length > 1 ? `（${lines.length} 件）` : ""}`}
               </Button>
               <Button
                 variant="ghost"
@@ -220,10 +283,19 @@ export function Converter() {
               CSV をダウンロード
             </Button>
           </div>
+          {mode === "sanger" && results.length > SANGER_SITES_PER_FORM && (
+            <Alert>
+              <Info />
+              <AlertDescription>
+                Sanger の依頼書に記入できる解析箇所は 1 件につき {SANGER_SITES_PER_FORM} か所までです。{results.length} 件ある場合は依頼書を分けてください。
+              </AlertDescription>
+            </Alert>
+          )}
           {results.map((r, i) => (
             <ResultCard
               key={`${i}-${r.input}`}
               result={r}
+              mode={mode ?? undefined}
               verification={verification[i]}
               onVerify={() => verify(r, i)}
             />
@@ -233,7 +305,7 @@ export function Converter() {
 
       {!results && !loading && (
         <div className="rounded-xl border border-dashed bg-card/50 px-6 py-10 text-center text-sm text-muted-foreground">
-          変換結果がここに表示されます。上の入力例をクリックすると試せます。
+          {mode ? "変換結果がここに表示されます。上の入力例をクリックすると試せます。" : "変換結果がここに表示されます。まず上で検査の区分を選んでください。"}
         </div>
       )}
 
@@ -287,10 +359,31 @@ const CAUTIONS = [
   "得られた位置は、UCSC Genome Browser などで同じリファレンス（hg38）を開き、SNP・ClinVar などの情報が元の変異と一致するか確認してください。",
   "古くから知られる変異は、シグナル配列を除いた成熟型タンパク質の番号で表記されていることがあります。その場合は、シグナル配列を含むコード領域上の番号に直してから入力してください。",
   "2 塩基以上の欠失は、範囲内のどの位置を指定しても構いません。依頼書の特記事項欄に欠失の内容を記入してください。",
-  "NGS 法で確認できるのは 1〜20 塩基程度の小さな変異までです。PMS2・BMPR1A・SDHD・CHEK2・NF1 などは相同領域があり、受け入れが難しい場合があります。",
+  "欠失・重複・挿入が同じ配列の繰り返しの中にある場合、hg38 の位置は HGVS の g. 表記の規則（+鎖の 3' 側に寄せる）で示します。c. 表記の番号から直接換算した位置と数塩基ずれることがありますが、同じ変異を指します。",
   "難病の遺伝子パネル検査で見つかった変異の家系解析にも使えます。ただし、エクソン単位の欠失・重複（CNV）や反復配列の伸長（リピート病）は位置指定のシングルサイト検査の対象外です。CYP21A2・SMN1/SMN2・GBA1・PKD1 など偽遺伝子や相同領域がある遺伝子は、重複領域の警告が出ます。受け入れ可否は検査会社に確認してください。",
   "ミトコンドリア DNA の変異は m. 表記（rCRS の番号、hg38 の chrM と同じ）で入力できます。変異の割合（ヘテロプラスミー率）は組織や人によって違うため、割合の測定が必要かどうかも含めて検査会社に確認してください。",
 ];
+
+const MODE_CAUTIONS: Record<KazusaMode, { source: string; items: string[] }> = {
+  cancer60: {
+    source: "がん関連遺伝子のシングルサイト解析 K110-40 Ver 8",
+    items: [
+      "対象は 60 遺伝子のたんぱく質コード領域のエクソンと、イントロン側 10 塩基以内です。UTR や、より深いイントロンの位置は対象外です。",
+      "対象は 1 塩基置換と、10 塩基以内の欠失・挿入です。指定した位置の前後 2 塩基を含む範囲のバリアントが報告されます。",
+      "PMS2・BMPR1A・SDHD・CHEK2・NF1・SDHA はゲノム上に相同配列があり、位置によっては受け入れられない場合があります。",
+      "依頼書には、遺伝子名と hg38 の位置を 9 桁（ゼロ埋め）で記入します。",
+    ],
+  },
+  sanger: {
+    source: "ヒト遺伝子単一エクソン受託解析 K110-6 Ver 9・Sanger 検査依頼書 2023 v1.2",
+    items: [
+      `依頼書の解析箇所には、遺伝子名・hg38 のゲノムポジション・NM 番号・c. 表記と配列の変化・アミノ酸情報（あれば）・発端者 ID を記入します。「Sanger 依頼書用（1行）」をコピーして貼り付け、発端者 ID を追記してください。1 件の依頼書に記入できるのは ${SANGER_SITES_PER_FORM} か所までです。`,
+      "発端者の解析をかずさ遺伝子検査室で行った場合は、報告書またはバリアント Excel 一覧に記載された位置を記入してください。本ツールの結果と異なる場合は、報告書の位置を優先します。",
+      "かずさ遺伝子検査室は HGMD で採用された NM 番号で解析しています。本ツールが先頭に表示する MANE Select と異なることがあるため、NM 番号と c. 表記はお手元の報告書と照合してください。",
+      "偽遺伝子・繰り返し配列・GC に富む領域・非常に大きな欠失を含む場合は、検査できないことがあります。大きな欠失・挿入は別途相談してください。体細胞モザイクは、割合によっては検出できないことがあります。",
+    ],
+  },
+};
 
 const DISCLAIMER = [
   "本ツールは、HGVS 表記で記載されたバリアントの GRCh38 ゲノム座標を求める作業を支援するためのものであり、疾患の診断・治療・予防を目的としたものではありません。",
@@ -326,6 +419,18 @@ function Notes({ meta }: { meta: { builtAt: string; mane: string; transcripts: n
             ))}
           </ul>
         </section>
+        {(Object.keys(MODE_CAUTIONS) as KazusaMode[]).map((m) => (
+          <section key={m}>
+            <h3 className="mb-1.5 font-semibold text-foreground">
+              ■ {MODE_LABEL[m]}の依頼（かずさ遺伝子検査室 {MODE_CAUTIONS[m].source}）
+            </h3>
+            <ul className="list-disc space-y-1 pl-5">
+              {MODE_CAUTIONS[m].items.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          </section>
+        ))}
         <section>
           <h3 className="mb-1.5 font-semibold text-foreground">■ 免責事項</h3>
           <ol className="list-decimal space-y-1 pl-5">
