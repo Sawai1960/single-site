@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRightLeft, Download, Eraser, Info, Loader2, OctagonX } from "lucide-react";
+import { ArrowRightLeft, ChevronDown, Download, Eraser, Info, Loader2, OctagonX, PencilLine } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { RequestFormFiller } from "@/components/request-form";
 import { effectiveStatus, ResultCard } from "@/components/result-card";
+import { SummaryTable } from "@/components/summary-table";
 import {
   fetchSourceChecks,
   SOURCES,
@@ -55,8 +58,12 @@ export function Converter() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<ConversionResult[] | null>(null);
+  const [resultsKey, setResultsKey] = useState(0);
   const [verification, setVerification] = useState<Record<number, ResultVerification>>({});
+  const [revealed, setRevealed] = useState(false);
   const runId = useRef(0);
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const details = useRef<HTMLDivElement>(null);
   const [meta, setMeta] = useState<{ builtAt: string; mane: string; transcripts: number } | null>(null);
 
   useEffect(() => {
@@ -83,7 +90,9 @@ export function Converter() {
       const list = await convertMany(lines);
       const run = ++runId.current;
       setResults(list);
+      setResultsKey((k) => k + 1);
       setVerification({});
+      setRevealed(false);
       list
         .map((r, i) => ({ r, i }))
         .filter(({ r }) => verifiableIndexes(r).length)
@@ -105,6 +114,16 @@ export function Converter() {
       update(id, { state: "pending" });
       fetchSourceChecks(r, id).then((s) => update(id, s));
     }
+  }
+
+  function backToInput() {
+    textarea.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    textarea.current?.focus({ preventScroll: true });
+  }
+
+  function reveal() {
+    setRevealed(true);
+    requestAnimationFrame(() => details.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
   function addExample(v: string) {
@@ -135,6 +154,18 @@ export function Converter() {
 
   const statuses = results?.map((r, i) => effectiveStatus(r, verification[i], mode));
   const summaries = results?.map((r, i) => verificationSummary(r, verification[i]));
+  const started = summaries?.filter((s) => s !== "none" && s !== "unchecked").length ?? 0;
+  const checking = summaries?.filter((s) => s === "pending").length ?? 0;
+  const unverified = summaries?.flatMap((s, i) => (s === "unchecked" ? [i] : [])) ?? [];
+
+  const lastCheck = useRef({ key: resultsKey, checking: 0 });
+  useEffect(() => {
+    const prev = lastCheck.current;
+    if (prev.key === resultsKey && prev.checking > 0 && checking === 0) {
+      toast.success("外部照合が完了しました。依頼書に記入できます");
+    }
+    lastCheck.current = { key: resultsKey, checking };
+  }, [resultsKey, checking]);
   const counts =
     statuses && summaries
       ? {
@@ -207,6 +238,7 @@ export function Converter() {
             </fieldset>
             <div className="pt-1 text-sm font-medium">② 変異を入力してください</div>
             <Textarea
+              ref={textarea}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -285,8 +317,40 @@ export function Converter() {
         </div>
       )}
 
-      {results && counts && (
-        <section className={loading ? "space-y-4 opacity-60 transition-opacity" : "space-y-4"} aria-live="polite">
+      {results && counts && mode && statuses && summaries && (
+        <section className={loading ? "space-y-3 opacity-60 transition-opacity" : "space-y-3"} aria-live="polite">
+          <div>
+            <h2 className="text-lg font-semibold">入力の確認</h2>
+            <p className="text-sm text-muted-foreground">
+              依頼書に書く遺伝子と位置の一覧です。入力した変異と合っているか確認してください。外部データベースとの照合は、確認している間に進めています。
+            </p>
+          </div>
+          <SummaryTable results={results} mode={mode} statuses={statuses} summaries={summaries} />
+          <div className="flex flex-wrap items-center gap-2">
+            {!revealed && (
+              <Button size="lg" onClick={reveal}>
+                <ChevronDown data-icon="inline-start" />
+                この内容で詳しい結果を表示する
+              </Button>
+            )}
+            <Button variant="outline" size="lg" onClick={backToInput}>
+              <PencilLine data-icon="inline-start" />
+              入力に戻って直す
+            </Button>
+            {checking > 0 && (
+              <span className="text-xs text-muted-foreground">
+                外部照合中…（{started - checking}/{started} 件完了）
+              </span>
+            )}
+          </div>
+        </section>
+      )}
+
+      {results && counts && revealed && (
+        <section
+          ref={details}
+          className={loading ? "scroll-mt-4 space-y-4 opacity-60 transition-opacity" : "scroll-mt-4 space-y-4"}
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">変換結果</h2>
@@ -324,6 +388,22 @@ export function Converter() {
               onVerify={() => verify(r, i)}
             />
           ))}
+          {mode && statuses && summaries && (
+            <RequestFormFiller
+              key={resultsKey}
+              results={results}
+              mode={mode}
+              checking={checking ? { done: started - checking, total: started } : null}
+              checked={started > 0}
+              unverified={unverified.length}
+              onVerifyRest={() => unverified.forEach((i) => verify(results[i], i))}
+              review={results.map((_, i) => ({
+                warning: statuses[i] === "warning",
+                mismatch: summaries[i] === "mismatch",
+                unverified: summaries[i] === "unchecked" || summaries[i] === "pending",
+              }))}
+            />
+          )}
         </section>
       )}
 
