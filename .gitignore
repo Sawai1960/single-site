@@ -43,3 +43,6 @@ next-env.d.ts
 # RefSeq data (regenerate with `npm run data`)
 /data/
 /public/data/
+
+# Reference sequences cached by the validation scripts
+/validation/.cache/

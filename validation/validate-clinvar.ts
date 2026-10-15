@@ -2,10 +2,12 @@
  * Validates the converter against ClinVar GRCh38 coordinates.
  * Usage: npx tsx validation/validate-clinvar.ts [--network-sample N]
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import "../tests/setup";
+import { applyEdit, type Case, loadCases, ourEdit, pool } from "./clinvar-common";
+import { requestCounts } from "./polite-fetch";
 import { convertOne, mapCdna, mapProtein, resolveTarget } from "../src/lib/variant/convert";
 import { revComp, translateCodon } from "../src/lib/variant/codon";
 import { bridgeTranscript } from "../src/lib/variant/bridge";
@@ -27,22 +29,6 @@ const argS = (name: string, def: string) => {
 };
 const SAMPLE_FILE = path.resolve(argS("--sample", path.join(DIR, "clinvar-sample.tsv")));
 const REPORT_FILE = path.resolve(argS("--report", path.join(DIR, "report.md")));
-
-interface Case {
-  id: string;
-  category: string;
-  nm: string;
-  gene: string;
-  c: string;
-  p: string;
-  chrom: string;
-  start: number;
-  stop: number;
-  posVcf: number;
-  refVcf: string;
-  altVcf: string;
-  review: string;
-}
 
 type Outcome = "pass" | "fail" | "skip";
 interface CheckStats {
@@ -66,70 +52,13 @@ function record(key: string, label: string, outcome: Outcome, detail?: string) {
   if (outcome === "skip" && detail) s.skips.set(detail, (s.skips.get(detail) ?? 0) + 1);
 }
 
-function loadCases(): { source: string; cases: Case[] } {
-  const lines = readFileSync(SAMPLE_FILE, "utf8").split("\n");
-  const source = lines[0].replace(/^# source: /, "");
-  const cases = lines
-    .slice(2)
-    .filter(Boolean)
-    .map((l) => {
-      const f = l.split("\t");
-      return {
-        id: f[0],
-        category: f[1],
-        nm: f[2],
-        gene: f[3],
-        c: f[4],
-        p: f[5],
-        chrom: `chr${f[6]}`,
-        start: Number(f[7]),
-        stop: Number(f[8]),
-        posVcf: Number(f[9]),
-        refVcf: f[10],
-        altVcf: f[11],
-        review: f[12],
-      };
-    });
-  return { source, cases };
-}
-
-function applyEdit(seq: string, offset: number, start: number, end: number, insert: string): string {
-  return seq.slice(0, start - offset) + insert + seq.slice(end - offset + 1);
-}
-
-/** Our interpretation of a c. indel as a genomic edit: replace [start,end] with insert (end = start-1 means pure insertion). */
-function ourEdit(q: Extract<ParsedQuery, { kind: "cdna" }>, t: Transcript, lo: number, hi: number, ref: (a: number, b: number) => string) {
-  const orient = (s: string) => (t.strand === "+" ? s : revComp(s));
-  switch (q.varType) {
-    case "deletion":
-      return { start: lo, end: hi, insert: "" };
-    case "duplication":
-      return { start: hi + 1, end: hi, insert: ref(lo, hi) };
-    case "insertion":
-      return { start: hi, end: lo, insert: orient(q.altAllele ?? "") };
-    case "delins":
-      return { start: lo, end: hi, insert: orient(q.altAllele ?? "") };
-    default:
-      return undefined;
-  }
-}
-
-async function pool<T>(items: T[], n: number, fn: (x: T) => Promise<void>) {
-  let i = 0;
-  await Promise.all(
-    Array.from({ length: n }, async () => {
-      while (i < items.length) await fn(items[i++]);
-    }),
-  );
-}
-
 function pickTranscripts(ts: Transcript[], chrom: string) {
   return ts.filter((t) => t.chrom === chrom);
 }
 
 async function main() {
   const t0 = Date.now();
-  const { source, cases } = loadCases();
+  const { source, cases } = loadCases(SAMPLE_FILE);
   const idx = await getIndex();
   await ensureAll(idx);
   const deferred: { k: Case; q: Extract<ParsedQuery, { kind: "cdna" }>; t: Transcript; lo: number; hi: number; key: string; label: string; via: string }[] = [];
@@ -369,6 +298,7 @@ async function main() {
   });
 
   writeReport(source, cases.length, shifted, (Date.now() - t0) / 1000);
+  console.log("external requests:", requestCounts);
 }
 
 function writeReport(source: string, total: number, shifted: number, secs: number) {
