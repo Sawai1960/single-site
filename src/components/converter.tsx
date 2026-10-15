@@ -11,6 +11,7 @@ import {
   fetchSourceChecks,
   SOURCES,
   verifiableIndexes,
+  verificationSummary,
   verificationText,
   type ResultVerification,
   type SourceState,
@@ -133,13 +134,17 @@ export function Converter() {
   }
 
   const statuses = results?.map((r, i) => effectiveStatus(r, verification[i]));
-  const counts = statuses
-    ? {
-        ok: statuses.filter((s) => s === "ok").length,
-        warning: statuses.filter((s) => s === "warning").length,
-        error: statuses.filter((s) => s === "error").length,
-      }
-    : null;
+  const summaries = results?.map((r, i) => verificationSummary(r, verification[i]));
+  const counts =
+    statuses && summaries
+      ? {
+          ok: statuses.filter((s) => s === "ok").length,
+          warning: statuses.filter((s) => s === "warning").length,
+          error: statuses.filter((s) => s === "error").length,
+          mismatch: summaries.filter((s) => s === "mismatch").length,
+          unchecked: summaries.filter((s) => s === "unchecked" || s === "unavailable" || s === "partial").length,
+        }
+      : null;
 
   return (
     <div className="space-y-6">
@@ -276,6 +281,14 @@ export function Converter() {
               <h2 className="text-lg font-semibold">変換結果</h2>
               <p className="text-sm text-muted-foreground">
                 {results.length} 件中 成功 {counts.ok} / 要確認 {counts.warning} / エラー {counts.error}
+                {counts.mismatch > 0 && (
+                  <span className="ml-2 font-semibold text-destructive">外部データベースと不一致 {counts.mismatch} 件（要精査）</span>
+                )}
+                {counts.unchecked > 0 && (
+                  <span className="ml-2 font-semibold text-amber-700 dark:text-amber-400">
+                    外部照合が済んでいない {counts.unchecked} 件
+                  </span>
+                )}
               </p>
             </div>
             <Button variant="outline" onClick={downloadCsv}>

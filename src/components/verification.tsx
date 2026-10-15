@@ -70,6 +70,25 @@ export function hasMismatch(v: ResultVerification | undefined, i?: number): bool
   });
 }
 
+export type VerificationSummary = "none" | "mismatch" | "pending" | "unchecked" | "unavailable" | "partial" | "match";
+
+/** Overall state of the external cross-check for one conversion result. */
+export function verificationSummary(r: ConversionResult, v: ResultVerification | undefined): VerificationSummary {
+  const idx = verifiableIndexes(r);
+  if (!idx.length) return "none";
+  if (hasMismatch(v)) return "mismatch";
+  const states = SOURCES.map(({ id }) => v?.[id]);
+  if (states.some((s) => s?.state === "pending")) return "pending";
+  if (states.every((s) => !s)) return "unchecked";
+  const matched = idx.filter((i) =>
+    states.some(
+      (s) => s?.state === "done" && (s.checks[i]?.forward?.status === "match" || s.checks[i]?.reverse?.status === "match"),
+    ),
+  ).length;
+  if (!matched) return "unavailable";
+  return matched === idx.length && states.every((s) => s?.state !== "error") ? "match" : "partial";
+}
+
 const STATUS_TEXT = { match: "一致", mismatch: "不一致", unavailable: "確認不可" } as const;
 
 /** One-line summary for CSV. */

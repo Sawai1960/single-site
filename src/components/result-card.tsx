@@ -1,13 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, CircleAlert, CircleCheck, Info, OctagonX } from "lucide-react";
+import { ChevronDown, CircleAlert, CircleCheck, Info, Loader2, OctagonX, ShieldCheck } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CandidateView } from "@/components/candidate-view";
-import { candidateChecks, hasMismatch, type ResultVerification } from "@/components/verification";
+import {
+  candidateChecks,
+  hasMismatch,
+  verificationSummary,
+  type ResultVerification,
+  type VerificationSummary,
+} from "@/components/verification";
 import { cn } from "@/lib/utils";
 import { formatPos, ninePad } from "@/lib/variant/format";
 import { modeRank, type KazusaMode } from "@/lib/variant/kazusa";
@@ -20,6 +26,52 @@ const STATUS = {
   warning: { label: "要確認", icon: CircleAlert, className: "bg-amber-500 text-white" },
   error: { label: "エラー", icon: OctagonX, className: "bg-destructive text-white" },
 } as const;
+
+const VERIFY_BADGE: Record<Exclude<VerificationSummary, "none">, { text: string; className: string; run?: boolean }> = {
+  mismatch: {
+    text: "外部データベースと不一致 — 専門家による精査が必要です",
+    className: "bg-destructive text-white",
+  },
+  pending: { text: "外部照合中…", className: "bg-muted text-muted-foreground" },
+  unchecked: {
+    text: "外部照合が未実施です",
+    className: "border border-amber-500 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+    run: true,
+  },
+  unavailable: {
+    text: "外部照合ができませんでした。時間をおいて再照合してください",
+    className: "border border-amber-500 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+    run: true,
+  },
+  partial: {
+    text: "外部照合で一部の候補を確認できませんでした",
+    className: "border border-amber-500 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
+    run: true,
+  },
+  match: {
+    text: "NCBI・Ensembl と一致",
+    className: "border border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
+  },
+};
+
+function VerifyBadge({ summary, onVerify }: { summary: VerificationSummary; onVerify?: () => void }) {
+  if (summary === "none") return null;
+  const b = VERIFY_BADGE[summary];
+  const Icon = summary === "mismatch" ? OctagonX : summary === "pending" ? Loader2 : summary === "match" ? ShieldCheck : CircleAlert;
+  return (
+    <>
+      <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold", b.className)}>
+        <Icon className={cn("size-3.5", summary === "pending" && "animate-spin")} />
+        {b.text}
+      </span>
+      {b.run && onVerify && (
+        <Button variant="outline" size="xs" onClick={onVerify}>
+          今すぐ照合する
+        </Button>
+      )}
+    </>
+  );
+}
 
 export function effectiveStatus(r: ConversionResult, v: ResultVerification | undefined): ConversionResult["status"] {
   return r.status === "ok" && hasMismatch(v) ? "warning" : r.status;
@@ -124,6 +176,7 @@ export function ResultCard({
             <status.icon data-icon="inline-start" />
             {status.label}
           </Badge>
+          <VerifyBadge summary={verificationSummary(result, verification)} onVerify={onVerify} />
           {result.formatLabel && <Badge variant="outline">{result.formatLabel}</Badge>}
           {result.candidates.length > 1 && (
             <span className="text-xs text-muted-foreground">候補 {result.candidates.length} 件</span>
