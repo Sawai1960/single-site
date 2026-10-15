@@ -4,7 +4,7 @@ import { CheckCircle2, CircleMinus, Loader2, ShieldCheck, XCircle } from "lucide
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { CheckOutcome, ConversionResult, SourceChecks, VerifySource, VerifyPlan } from "@/lib/variant/types";
+import type { CheckOutcome, ConversionResult, SelfCheck, SourceChecks, VerifySource, VerifyPlan } from "@/lib/variant/types";
 import { verifyItems } from "@/lib/variant/verify";
 
 export const SOURCES: { id: VerifySource; label: string }[] = [
@@ -150,12 +150,54 @@ function OutcomeCell({ outcome, pending, error, none }: { outcome?: CheckOutcome
   );
 }
 
+function SelfCheckRow({ selfCheck }: { selfCheck: SelfCheck }) {
+  const shown = selfCheck.rows.slice(0, 3);
+  return (
+    <div className="grid gap-2 border-b px-3 py-2 sm:grid-cols-[7.5rem_minmax(0,1fr)]">
+      <div className="text-xs">
+        <div className="font-medium">本ツール内の往復</div>
+        <div className="text-muted-foreground">c. ⇄ hg38</div>
+      </div>
+      <div className="min-w-0 space-y-0.5">
+        {selfCheck.ok ? (
+          <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-400">
+            <CheckCircle2 data-icon="inline-start" />
+            一致
+          </Badge>
+        ) : (
+          <Badge variant="destructive">
+            <XCircle data-icon="inline-start" />
+            不一致
+          </Badge>
+        )}
+        {shown.map((r) => (
+          <div
+            key={`${r.c}-${r.pos}`}
+            className={cn("font-mono text-xs break-words", r.ok ? "text-muted-foreground" : "text-destructive")}
+          >
+            {r.c} → {r.forward?.toLocaleString() ?? "計算不可"}
+            {r.forward !== r.pos && `（期待 ${r.pos.toLocaleString()}）`} / {r.pos.toLocaleString()} → {r.reverse ?? "計算不可"}
+          </div>
+        ))}
+        {selfCheck.rows.length > shown.length && (
+          <div className="text-xs text-muted-foreground">ほか {selfCheck.rows.length - shown.length} 塩基</div>
+        )}
+        <div className="text-xs text-muted-foreground">
+          同じ UCSC のアライメントで両方向に計算し直した結果です。計算の誤りは見つけられますが、データ自体の誤りは外部データベースとの照合で確認します。
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function VerificationPanel({
   plan,
+  selfCheck,
   checks,
   onRun,
 }: {
   plan: VerifyPlan;
+  selfCheck?: SelfCheck;
   checks: ReturnType<typeof candidateChecks>;
   onRun?: () => void;
 }) {
@@ -169,14 +211,18 @@ export function VerificationPanel({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2">
         <div className="flex items-center gap-1.5 text-xs font-medium">
           <ShieldCheck className="size-4 text-muted-foreground" />
-          外部データベースとの照合
-          <span className="font-normal text-muted-foreground">（UCSC のアライメントを使わない独立した計算）</span>
+          計算結果の照合
         </div>
         {!started && onRun && (
           <Button variant="outline" size="xs" onClick={onRun}>
             照合する
           </Button>
         )}
+      </div>
+      {selfCheck && <SelfCheckRow selfCheck={selfCheck} />}
+      <div className="border-b bg-muted/20 px-3 py-1 text-xs font-medium">
+        外部データベース
+        <span className="font-normal text-muted-foreground">（UCSC のアライメントを使わない独立した計算）</span>
       </div>
       {started ? (
         <div className="divide-y">

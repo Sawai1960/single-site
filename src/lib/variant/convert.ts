@@ -3,7 +3,7 @@ import { chromToNC } from "./chrom";
 import { locusText } from "./format";
 import { HOMOLOGOUS_GENES } from "./kazusa";
 import { cdsLengthAA, cPosToGenome, cToTx, formatCPos, genomeToC, MappingError, txToC } from "./mapping";
-import { ParseError, normalizeInput, parseQuery } from "./parse";
+import { ParseError, normalizeInput, parseCPos, parseQuery } from "./parse";
 import {
   accBase,
   accVersion,
@@ -26,6 +26,7 @@ import type {
   ParsedQuery,
   QueryTarget,
   ResultCandidate,
+  SelfCheck,
   SnvCandidate,
   Transcript,
   VerifyPlan,
@@ -299,6 +300,42 @@ export function shiftGenomic3(
 type CdnaQuery = Extract<ParsedQuery, { kind: "cdna" }>;
 type ProteinQuery = Extract<ParsedQuery, { kind: "protein" }>;
 
+/**
+ * Recomputes each verify point in both directions with this tool's own mapping code. Both directions
+ * use the same alignment, so this catches calculation errors (off-by-one, strand, intron offsets), not
+ * errors in the alignment data itself.
+ */
+export function selfRoundTrip(t: Transcript, points: VerifyPlan["points"]): SelfCheck {
+  const rows = points.map(({ c, pos }) => {
+    let forward: number | undefined;
+    let reverse: string | undefined;
+    try {
+      forward = cPosToGenome(t, parseCPos(c.slice(2))).genomic;
+    } catch {}
+    try {
+      reverse = genomeToC(t, pos);
+    } catch {}
+    // An intronic base can be written from either flanking exon; the other form is fine if it lands on the same base.
+    let sameBase = reverse === c;
+    if (!sameBase && reverse && (/\d[+-]\d/.test(c) || /\d[+-]\d/.test(reverse))) {
+      try {
+        sameBase = cPosToGenome(t, parseCPos(reverse.slice(2))).genomic === pos;
+      } catch {}
+    }
+    return { c, pos, forward, reverse, ok: forward === pos && sameBase };
+  });
+  return { ok: rows.length > 0 && rows.every((r) => r.ok), rows };
+}
+
+const SELF_CHECK_FAILED =
+  "本ツール内の往復計算（c. → hg38 → c.）が一致しません。本ツールの計算に誤りがある可能性があります。UCSC Genome Browser と外部データベースの照合で必ず確認してください";
+
+function withSelfCheck<C extends ResultCandidate>(t: Transcript, c: C): C {
+  if (!c.verify?.points.length) return c;
+  const selfCheck = selfRoundTrip(t, c.verify.points);
+  return { ...c, selfCheck, warnings: selfCheck.ok ? c.warnings : [SELF_CHECK_FAILED, ...c.warnings] };
+}
+
 function positionOnly(acc: string, posText: string, lo: number, hi: number): ForwardCheck {
   return { hgvs: `${acc}:${posText}del`, edit: { from: lo, to: hi, alt: "" }, at: { hgvs: `${acc}:${posText}`, from: lo, to: hi } };
 }
@@ -458,7 +495,7 @@ async function convertCdna(
     const gPos = gLo === gHi ? `${gLo}` : `${gLo}_${gHi}`;
     const points = [{ pos: cPosToGenome(t, q.start).genomic, c: formatCPos(q.start) }];
     if (q.end !== q.start) points.push({ pos: cPosToGenome(t, q.end).genomic, c: formatCPos(q.end) });
-    return {
+    return withSelfCheck(t, {
       transcript: t.acc,
       gene: t.gene,
       protein: t.prot,
@@ -481,7 +518,7 @@ async function convertCdna(
       warnings: [...new Set(w)],
       ucscUrl: ucscUrl(t.chrom, gLo, gHi),
       verify: { forward: [cdnaForwardCheck(q, t, lo, hi, gRef)], points },
-    } satisfies ResultCandidate;
+    } satisfies ResultCandidate);
   });
   return { candidates, errors };
 }
@@ -597,7 +634,7 @@ async function convertProtein(
       })),
       points: [...codonPoints(codon1, q.pos1), ...(codon2 && q.pos2 ? codonPoints(codon2, q.pos2) : [])],
     };
-    return {
+    return withSelfCheck(t, {
       transcript: t.acc,
       gene: t.gene,
       protein: t.prot,
@@ -615,7 +652,7 @@ async function convertProtein(
       warnings: [...new Set(w)],
       ucscUrl: ucscUrl(t.chrom, lo, hi),
       verify,
-    } satisfies ResultCandidate;
+    } satisfies ResultCandidate);
   });
   return { candidates, errors };
 }
@@ -844,7 +881,7 @@ async function convertGenomic(
       if (c2) points.push({ pos: t.strand === "+" ? end : start, c: c2 });
       verify = { forward: [forward], points };
     }
-    return {
+    return withSelfCheck(t, {
       ...base,
       transcript: t.acc,
       gene: t.gene,
@@ -856,7 +893,7 @@ async function convertGenomic(
       // The generic mismatch note says nothing about a genomic position, so only the numbering note is shown.
       warnings: [...warnings, ...transcriptWarnings(idx, t, txOfC(t, c1), false)],
       verify,
-    };
+    });
   });
 }
 
@@ -946,7 +983,7 @@ export async function convertOne(raw: string): Promise<ConversionResult> {
       input,
       format,
       formatLabel: FORMAT_LABEL[format],
-      status: refFail || fallback ? "warning" : "ok",
+      status: refFail || fallback || candidates.some((c) => c.selfCheck && !c.selfCheck.ok) ? "warning" : "ok",
       candidates,
       notes,
       versions,

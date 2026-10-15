@@ -508,6 +508,7 @@ function Notes({ meta }: { meta: { builtAt: string; mane: string; transcripts: n
     "参照配列の照合: UCSC API（予備に Ensembl REST）",
     "hg19 → hg38 の変換: Ensembl REST",
     "ミトコンドリアの遺伝子情報: NCBI の NC_012920.1",
+    "本ツール内の往復計算: すべての候補で、同じアライメントを使って c. → hg38 と hg38 → c. を両方向に計算し直し、一致するかを確認します（計算の誤りの検出用。データ自体の誤りは外部データベースとの照合で確認します）",
     `外部データベースとの照合: NCBI Variation Services と Ensembl VEP（RefSeq 転写産物）。先頭 ${AUTO_VERIFY_RESULTS} 件は自動で照合し、それ以降は各候補の「照合する」から実行します。`,
   ];
   return (

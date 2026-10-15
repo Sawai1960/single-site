@@ -312,7 +312,7 @@ export function CandidateView({
         </ul>
       )}
 
-      {c.verify && c.transcript && <VerificationPanel plan={c.verify} checks={checks ?? {}} onRun={onVerify} />}
+      {c.verify && c.transcript && <VerificationPanel plan={c.verify} selfCheck={c.selfCheck} checks={checks ?? {}} onRun={onVerify} />}
     </div>
   );
 }

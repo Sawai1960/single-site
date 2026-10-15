@@ -30,7 +30,7 @@ function chromName(s: string): string {
   return `chr${c}`;
 }
 
-function parseCPos(s: string): CPos {
+export function parseCPos(s: string): CPos {
   const m = s.match(/^([-*]?)(\d+)(?:([+-])(\d+))?$/);
   if (!m) throw new ParseError(`c. の位置表記を解釈できません: ${s}`);
   const n = Number(m[2]);

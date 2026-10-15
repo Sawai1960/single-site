@@ -119,6 +119,23 @@ export interface ResultCandidate {
   region?: string;
   /** What to ask independent databases (NCBI, Ensembl) to cross-check this candidate */
   verify?: VerifyPlan;
+  /** This tool's own round trip over the same alignment: each c. ↔ hg38 point computed in both directions */
+  selfCheck?: SelfCheck;
+}
+
+export interface SelfCheckRow {
+  c: string;
+  pos: number;
+  /** c. → hg38 for `c` */
+  forward?: number;
+  /** hg38 → c. for `pos` */
+  reverse?: string;
+  ok: boolean;
+}
+
+export interface SelfCheck {
+  ok: boolean;
+  rows: SelfCheckRow[];
 }
 
 /** Edit on the hg38 + strand: bases from..to (1-based) are replaced by alt; to = from - 1 is a pure insertion. */
