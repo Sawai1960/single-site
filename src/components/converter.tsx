@@ -472,7 +472,13 @@ function Notes({ meta }: { meta: { builtAt: string; mane: string; transcripts: n
             ))}
           </ul>
         </section>
-        <p>作成者: 兵庫医科大学 澤井英明</p>
+        <div>
+          <p>作成者: 兵庫医科大学 澤井英明</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            © 2026 Hideaki Sawai. All rights reserved.
+            本ツールはどなたでも自由にご利用いただけます。ソースコードの複製・改変・再配布には作成者の許可が必要です。
+          </p>
+        </div>
       </CardContent>
     </Card>
   );

@@ -191,3 +191,6 @@ npx tsx validation/validate-external.ts --ensembl
 5. 患者を特定できる情報（氏名・ID 等）は入力しないでください。
 
 作成者: 兵庫医科大学 澤井英明
+
+© 2026 Hideaki Sawai. All rights reserved.
+本ツールはどなたでも自由にご利用いただけます。ソースコードの複製・改変・再配布には作成者の許可が必要です。
