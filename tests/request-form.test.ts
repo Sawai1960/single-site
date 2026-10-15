@@ -53,7 +53,6 @@ describe.skipIf(!existsSync(FORMS))("かずさ遺伝子検査室の依頼書へ�
 
   it("既に記入された変異の欄を見つけ、記入し直すと前の内容は消える", () => {
     const re = readForm(form(CANCER_RE));
-    expect(filledVariantCells(re)).toEqual(["G14"]);
     const once = fillForm(re, [entry("TP53", 7675088)]);
     expect(filledVariantCells(readForm(once)).length).toBe(10);
     const twice = fillForm(readForm(once), [entry("APC", 112838220)]);

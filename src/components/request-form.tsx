@@ -12,6 +12,7 @@ import {
   FORM_LABEL,
   FORM_MODE,
   FormError,
+  checkFormTranscripts,
   filledVariantCells,
   fillForm,
   planEntries,
@@ -107,7 +108,7 @@ export function RequestFormFiller({
     if (slots.every((s) => next[s])) fill(next.main!, next.re);
   }
 
-  function fill(first: Picked, re: Picked | undefined) {
+  async function fill(first: Picked, re: Picked | undefined) {
     setError(null);
     setOutcome(null);
     try {
@@ -117,11 +118,21 @@ export function RequestFormFiller({
         return;
       }
       const allowed = first.form.genes;
-      const entries = plan.entries.filter((e) => !allowed || allowed.has(e.gene));
+      let entries = plan.entries.filter((e) => !allowed || allowed.has(e.gene));
+      if (allowed) {
+        const checks = await checkFormTranscripts(entries, allowed);
+        entries = entries.map((e, i) =>
+          !checks[i].note
+            ? e
+            : checks[i].review
+              ? { ...e, alerts: [checks[i].note], review: [...e.review, "依頼書の転写産物では対象範囲外の可能性。かずさ遺伝子検査室に確認が必要"] }
+              : { ...e, info: [checks[i].note] },
+        );
+      }
       const skipped = [
         ...plan.skipped,
         ...plan.entries
-          .filter((e) => !entries.includes(e))
+          .filter((e) => !entries.some((x) => x.index === e.index))
           .map((e) => ({ input: e.input, index: e.index, reason: `${e.gene} は依頼書の遺伝子リストにないため記入しません` })),
       ];
 
@@ -260,6 +271,28 @@ export function RequestFormFiller({
 
         {outcome && (
           <div className="space-y-3">
+            {outcome.outputs.some((o) => o.entries.some((e) => e.alerts?.length)) && (
+              <Alert variant="destructive" className="border-2 border-destructive">
+                <OctagonX />
+                <AlertTitle className="text-base font-semibold">送付前に、かずさ遺伝子検査室に確認してください</AlertTitle>
+                <AlertDescription>
+                  <p>次の変異は、依頼書に表示される転写産物では解析の対象範囲から外れる可能性があります。解析できるかを確認してから送付してください。</p>
+                  <ul className="list-disc pl-4">
+                    {outcome.outputs
+                      .flatMap((o) => o.entries)
+                      .filter((e) => e.alerts?.length)
+                      .map((e, i) => (
+                        <li key={`${e.input}-${i}`}>
+                          <span className="font-mono">
+                            {e.gene} {String(e.pos).padStart(9, "0")}
+                          </span>
+                          （入力: {e.input}）
+                        </li>
+                      ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
             {outcome.left.length > 0 && (
               <Alert className="border-2 border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
                 <CircleAlert />
@@ -294,8 +327,18 @@ export function RequestFormFiller({
                           {e.gene} {String(e.pos).padStart(9, "0")}
                           {e.text && ` — ${e.text}`}
                           <span className="font-sans"> （入力: {e.input}）</span>
+                          {e.alerts?.map((n) => (
+                            <span key={n} className="block font-sans text-sm font-semibold text-destructive">
+                              ⚠ {n}
+                            </span>
+                          ))}
                           {[...e.review, ...e.notes].map((n) => (
                             <span key={n} className="block font-sans text-amber-700 dark:text-amber-400">
+                              {n}
+                            </span>
+                          ))}
+                          {e.info?.map((n) => (
+                            <span key={n} className="block font-sans text-muted-foreground">
                               {n}
                             </span>
                           ))}

@@ -8,6 +8,8 @@
  */
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { isCancer60, modeRank, requestText, sangerLine, type KazusaMode } from "./kazusa";
+import { genomeToC } from "./mapping";
+import { accBase, accVersion, ensureAccessions, getIndex } from "./refseq";
 import type { ConversionResult, ResultCandidate } from "./types";
 
 export type FormKind = "cancer" | "cancer-re" | "sanger";
@@ -36,8 +38,8 @@ export interface RequestForm {
   files: Record<string, Uint8Array>;
   sheetPath: string;
   strings: string[];
-  /** gene names the form's own list accepts; null when the list could not be read */
-  genes: Set<string> | null;
+  /** gene names the form's own list accepts, with the NM_ it shows for each; null when the list could not be read */
+  genes: Map<string, { transcript: string }> | null;
 }
 
 const decode = (s: string) =>
@@ -118,14 +120,15 @@ function sheetPathByName(files: Record<string, Uint8Array>, name: string): strin
   return target.startsWith("/") ? target.slice(1) : `xl/${target}`;
 }
 
-function formGenes(files: Record<string, Uint8Array>, strings: string[]): Set<string> | null {
+/** The hidden "secret" sheet the form's own VLOOKUPs read: gene (E), NM_ (F), chromosome (G). */
+function formGenes(files: Record<string, Uint8Array>, strings: string[]): RequestForm["genes"] {
   const path = sheetPathByName(files, "secret");
   const xml = path && files[path] ? strFromU8(files[path]) : undefined;
   if (!xml) return null;
-  const genes = new Set<string>();
+  const genes: NonNullable<RequestForm["genes"]> = new Map();
   for (let r = 2; r <= 200; r++) {
     const g = readCell(xml, strings, `E${r}`).text.trim();
-    if (/^[A-Z][A-Z0-9-]*$/.test(g)) genes.add(g);
+    if (/^[A-Z][A-Z0-9-]*$/.test(g)) genes.set(g, { transcript: readCell(xml, strings, `F${r}`).text.trim() });
   }
   return genes.size ? genes : null;
 }
@@ -231,6 +234,12 @@ export interface PlannedEntry extends FormEntry {
   notes: string[];
   /** position of the source result in the list passed to planEntries */
   index: number;
+  /** NM_ the position was computed on */
+  transcript: string;
+  /** neutral remarks that need no action */
+  info?: string[];
+  /** must be settled with Kazusa before sending */
+  alerts?: string[];
 }
 
 export interface EntryPlan {
@@ -298,7 +307,45 @@ export function planEntries(
     }
     const dup = plan.entries.find((e) => (mode === "sanger" ? e.text === text : e.gene === c.gene && e.pos === pos));
     if (dup) return skip(`「${dup.input}」と同じ位置のため、重ねて記入しません`);
-    plan.entries.push({ input: r.input, gene: c.gene, pos, text, review: flags, notes, index: i });
+    plan.entries.push({ input: r.input, gene: c.gene, pos, text, review: flags, notes, index: i, transcript: c.transcript });
   });
   return plan;
+}
+
+/** Inside the cancer test's target: coding exons and up to 10 intronic bases from them. */
+function inCodingTarget(c: string): boolean {
+  const m = c.match(/^c\.(\d+)([+-]\d+)?$/);
+  return Boolean(m) && Math.abs(Number(m![2] ?? 0)) <= 10;
+}
+
+/**
+ * Compares each entry with the NM_ the form itself shows for its gene. The position written is the
+ * same either way, but Kazusa reports c. on its own NM_, and a base inside the target on one
+ * transcript can fall outside it on another.
+ */
+export async function checkFormTranscripts(
+  entries: PlannedEntry[],
+  genes: RequestForm["genes"],
+): Promise<{ note: string; review: boolean }[]> {
+  const idx = await getIndex();
+  const formAccs = entries.map((e) => genes?.get(e.gene)?.transcript ?? "");
+  await ensureAccessions(idx, formAccs.filter(Boolean));
+  return entries.map((e, i) => {
+    const formAcc = formAccs[i];
+    if (!formAcc || accBase(formAcc) === accBase(e.transcript)) return { note: "", review: false };
+    const t = (idx.byBase.get(accBase(formAcc)) ?? [])
+      .filter((x) => !x.bridge)
+      .sort((a, b) => Number(a.hist) - Number(b.hist) || accVersion(b.acc) - accVersion(a.acc))[0];
+    const c = t ? genomeToC(t, e.pos) : undefined;
+    if (c && inCodingTarget(c)) {
+      return {
+        note: `依頼書に表示される転写産物（${formAcc}）は計算に使った ${e.transcript} と異なりますが、記入した位置（9 桁）は同じで、解析の対象範囲内です。問題ありません（${formAcc} では ${c} にあたるため、報告書の c. 表記が入力と違うことがあります）`,
+        review: false,
+      };
+    }
+    return {
+      note: `依頼書に表示される転写産物 ${formAcc} では、この位置は ${c ?? "転写産物の範囲外"} にあたり、解析の対象範囲（コード領域のエクソンとイントロン側 10 塩基以内）から外れる可能性があります。送付前に、かずさ遺伝子検査室に解析できるか確認してください`,
+      review: true,
+    };
+  });
 }
