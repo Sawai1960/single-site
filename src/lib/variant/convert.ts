@@ -1,6 +1,6 @@
 import { aa3, revComp, translateCodon } from "./codon";
 import { chromToNC } from "./chrom";
-import { cdsLengthAA, cPosToGenome, formatCPos, genomeToC, MappingError } from "./mapping";
+import { cdsLengthAA, cPosToGenome, cToTx, formatCPos, genomeToC, MappingError, txToC } from "./mapping";
 import { ParseError, normalizeInput, parseQuery } from "./parse";
 import {
   accBase,
@@ -84,8 +84,31 @@ function duplicationWarning(idx: RefSeqIndex, t: Transcript): string | undefined
   );
 }
 
-function transcriptWarnings(idx: RefSeqIndex, t: Transcript): string[] {
+/**
+ * Stretches of the transcript that hg38 lacks, lying between c.1 and transcript position `tx`.
+ * Resources that number along the genome (ClinVar, Ensembl, many papers) then disagree with
+ * the transcript sequence, which this tool and NCBI follow.
+ */
+function numberingGaps(t: Transcript, tx: number): string[] {
+  const [lo, hi] = tx >= t.cds[0] ? [t.cds[0], tx] : [tx, t.cds[0]];
+  const gaps: string[] = [];
+  for (let i = 0; i + 1 < t.blocks.length; i++) {
+    const from = t.blocks[i][0] + t.blocks[i][2] + 1;
+    const to = t.blocks[i + 1][0];
+    if (to >= from && from > lo && to < hi) gaps.push(`c.${txToC(t, from)}〜c.${txToC(t, to)} の ${to - from + 1} 塩基`);
+  }
+  return gaps;
+}
+
+/** Transcript position of the anchor of a c. text such as "c.1724-1" or "c.*20". */
+function txOfC(t: Transcript, c: string | undefined): number | undefined {
+  const m = c?.match(/^c\.(\*?)(-?\d+)/);
+  return m ? cToTx(t, { base: Number(m[2]), utr3: m[1] === "*", offset: 0 }) : undefined;
+}
+
+function transcriptWarnings(idx: RefSeqIndex, t: Transcript, tx?: number, generic = true): string[] {
   const w: string[] = [];
+  const gaps = tx === undefined ? [] : numberingGaps(t, tx);
   if (t.hist) w.push(`${t.acc} は旧バージョンの転写産物です。現行版とゲノム位置が異なることがあります`);
   if (t.bridge) {
     w.push(
@@ -96,7 +119,13 @@ function transcriptWarnings(idx: RefSeqIndex, t: Transcript): string[] {
     );
   }
   const aligned = t.blocks.reduce((s, b) => s + b[2], 0);
-  if (t.mm > 0 || aligned < t.len) {
+  if (gaps.length) {
+    w.push(
+      `${t.acc} には hg38 ゲノムに存在しない部分（${gaps.join("、")}）があり、この位置の c. 番号はデータベースによって異なります。` +
+        "本ツールと NCBI は転写産物の配列どおりに数えますが、ClinVar・Ensembl・論文では番号がずれていることがあります。" +
+        "ClinVar などの c. 表記を入力した場合や、c. 表記を他の資料と照らし合わせる場合は、ClinVar に記載された GRCh38 の位置と必ず照合してください",
+    );
+  } else if (generic && (t.mm > 0 || aligned < t.len)) {
     w.push(`${t.acc} の配列は hg38 ゲノム配列と完全には一致しません（不一致・未整列の塩基があります）`);
   }
   if (HOMOLOGOUS_GENES.has(t.gene.toUpperCase())) {
@@ -344,7 +373,7 @@ async function convertCdna(
     formatCPos(q.start) + (q.end !== q.start ? `_${formatCPos(q.end).slice(2)}` : "") + q.change;
 
   const candidates = mapped.map(({ t, lo, hi, warnings }) => {
-    const w = [...warnings, ...transcriptWarnings(idx, t)];
+    const w = [...warnings, ...transcriptWarnings(idx, t, cToTx(t, q.end))];
     const acc = seqs.get(t.chrom);
     let gRef: string | undefined;
     if (acc && hi - lo < 300) gRef = acc(lo, hi);
@@ -439,7 +468,7 @@ async function convertProtein(
   );
 
   const candidates = mapped.map(({ t, codon1, codon2 }) => {
-    const w = transcriptWarnings(idx, t);
+    const w = transcriptWarnings(idx, t, t.cds[0] + (lastPos - 1) * 3);
     const all = [...codon1, ...(codon2 ?? [])];
     const lo = Math.min(...all);
     const hi = Math.max(...all);
@@ -770,7 +799,8 @@ async function convertGenomic(
       historical: t.hist,
       strand: t.strand,
       hgvsC: cText,
-      warnings: [...warnings, ...transcriptWarnings(idx, t).filter((x) => !x.includes("完全には一致しません"))],
+      // The generic mismatch note says nothing about a genomic position, so only the numbering note is shown.
+      warnings: [...warnings, ...transcriptWarnings(idx, t, txOfC(t, c1), false)],
       verify,
     };
   });

@@ -207,6 +207,20 @@ describe("照合と注意表示", () => {
     const tp53 = r.candidates.find((c) => c.transcript === "NM_000546.6");
     expect(tp53?.hgvsC).toBe("NM_000546.6:c.375+1G>A");
   });
+
+  it("hg38 に無い部分より後ろの c. 番号は、どの入力形式でもデータベースによる番号のずれを注意する（SHANK3）", async () => {
+    const note = "c.1528〜c.1566 の 39 塩基";
+    const after = await convertOne("NM_001372044.2:c.1734T>A");
+    expect(after.candidates[0]).toMatchObject({ chrom: "chr22", start: 50698700 });
+    expect(after.candidates[0].warnings.join()).toContain(note);
+    const genomic = await convertOne("hg38, chr22:50698700");
+    const shank3 = genomic.candidates.find((c) => c.transcript === "NM_001372044.2");
+    expect(shank3?.hgvsC).toBe("NM_001372044.2:c.1734");
+    expect(shank3?.warnings.join()).toContain(note);
+    const before = await convertOne("NM_001372044.2:c.994G>A");
+    expect(before.candidates[0].warnings.join()).not.toContain(note);
+    expect(before.candidates[0].warnings.join()).toContain("完全には一致しません");
+  });
 });
 
 describe("UCSC にアライメントの無いバージョン（NCBI の配列で照合）", () => {
