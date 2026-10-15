@@ -5,6 +5,7 @@ import { CircleAlert, CircleCheck, Download, FileSpreadsheet, Info, Loader2, Oct
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { MODE_LABEL, type KazusaMode } from "@/lib/variant/kazusa";
 import {
   FORM_CAPACITY,
@@ -35,6 +36,13 @@ interface Outcome {
   leftReason?: string;
 }
 
+type Slot = "main" | "re";
+
+interface Picked {
+  file: File;
+  form: RequestForm;
+}
+
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 export function RequestFormFiller({
@@ -57,44 +65,52 @@ export function RequestFormFiller({
   unverified: number;
   onVerifyRest: () => void;
 }) {
-  const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [picked, setPicked] = useState<Partial<Record<Slot, Picked>>>({});
 
   useEffect(() => {
     const urls = outcome?.outputs.map((o) => o.url) ?? [];
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
   }, [outcome]);
 
-  async function onFiles(list: FileList | null) {
-    if (!list?.length) return;
+  const planned = planEntries(results, mode, review).entries.length;
+  const perForm = FORM_CAPACITY[mode === "cancer60" ? "cancer" : "sanger"];
+  const needsSecond = mode === "cancer60" && planned > perForm;
+  const slots: Slot[] = needsSecond ? ["main", "re"] : ["main"];
+
+  async function onPick(slot: Slot, file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    let form: RequestForm;
+    try {
+      form = readForm(new Uint8Array(await file.arrayBuffer()));
+    } catch (e) {
+      setError(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);
+      return;
+    }
+    if (FORM_MODE[form.kind] !== mode) {
+      setError(`${file.name} は${FORM_LABEL[form.kind]}です。選んでいる区分（${MODE_LABEL[mode]}）の依頼書を選んでください`);
+      return;
+    }
+    if (needsSecond && slot === "main" && form.kind === "cancer-re") {
+      setError(`${file.name} は再解析依頼書です。②の窓に入れてください`);
+      return;
+    }
+    if (slot === "re" && form.kind !== "cancer-re") {
+      setError(`${file.name} は${FORM_LABEL[form.kind]}です。②の窓には再解析依頼書を入れてください`);
+      return;
+    }
+    const next = { ...picked, [slot]: { file, form } };
+    setPicked(next);
+    setOutcome(null);
+    if (slots.every((s) => next[s])) fill(next.main!, next.re);
+  }
+
+  function fill(first: Picked, re: Picked | undefined) {
     setError(null);
     setOutcome(null);
     try {
-      const forms: { file: File; form: RequestForm }[] = [];
-      for (const file of Array.from(list)) {
-        try {
-          forms.push({ file, form: readForm(new Uint8Array(await file.arrayBuffer())) });
-        } catch (e) {
-          throw new FormError(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-      const wrong = forms.find(({ form }) => FORM_MODE[form.kind] !== mode);
-      if (wrong) {
-        throw new FormError(
-          `${wrong.file.name} は${FORM_LABEL[wrong.form.kind]}です。選んでいる区分（${MODE_LABEL[mode]}）の依頼書を選んでください`,
-        );
-      }
-      const first = forms.find(({ form }) => form.kind !== "cancer-re") ?? forms[0];
-      const re = forms.find(({ form }) => form.kind === "cancer-re");
-      if (forms.length > (mode === "cancer60" ? 2 : 1) || (mode === "cancer60" && forms.length === 2 && (!re || first === re))) {
-        throw new FormError(
-          mode === "cancer60"
-            ? "選べるのは、がん関連遺伝子のシングルサイト解析依頼書と再解析依頼書の 1 つずつです"
-            : "Sanger の依頼書は 1 つだけ選んでください",
-        );
-      }
-
       const plan = planEntries(results, mode, review);
       if (!plan.entries.length) {
         setOutcome({ outputs: [], skipped: plan.skipped, left: [] });
@@ -112,7 +128,7 @@ export function RequestFormFiller({
       const per = FORM_CAPACITY[first.form.kind];
       const chunks: { form: RequestForm; file: File; items: PlannedEntry[]; from: number }[] = [];
       for (let i = 0; i < entries.length; i += per) {
-        const target = i === 0 ? first : re;
+        const target = i === 0 ? first : i === per ? re : undefined;
         if (!target) break;
         chunks.push({ form: target.form, file: target.file, items: entries.slice(i, i + per), from: i + 1 });
       }
@@ -122,7 +138,7 @@ export function RequestFormFiller({
         ? undefined
         : mode === "sanger"
           ? `Sanger の依頼書に記入できるのは ${per} か所までです。残りは別の依頼書でお申し込みください（分け方はかずさ遺伝子検査室にご確認ください）`
-          : "5 か所目以降は再解析依頼書が必要です。通常の依頼書と再解析依頼書の 2 つを一緒に選んでください";
+          : `通常の依頼書と再解析依頼書の 2 つで記入できるのは ${per * 2} か所までです。残りは別の依頼でお申し込みください（分け方はかずさ遺伝子検査室にご確認ください）`;
 
       const flagged = chunks.flatMap((c) => c.items).filter((e) => e.review.length);
       if (
@@ -164,12 +180,8 @@ export function RequestFormFiller({
       setOutcome({ outputs, skipped, left, leftReason });
     } catch (e) {
       setError(e instanceof FormError ? e.message : `依頼書に記入できませんでした: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      if (input.current) input.current.value = "";
     }
   }
-
-  const needsSecond = mode === "cancer60" && results.filter((r) => r.status !== "error").length > FORM_CAPACITY.cancer;
 
   return (
     <Card>
@@ -187,46 +199,56 @@ export function RequestFormFiller({
           </span>
           <span className="block">
             {mode === "cancer60"
-              ? "がん関連遺伝子の依頼書は 1 枚に 4 か所までです。5 か所目以降は再解析依頼書に 4 か所ずつ記入するので、通常の依頼書と再解析依頼書の 2 つを一緒に選んでください。再解析依頼書の匿名化 ID と医療機関の情報が空欄なら、通常の依頼書から写します（チェックボックスは手で入れてください）。"
+              ? "がん関連遺伝子の依頼書は 1 枚に 4 か所までです。記入するか所が 5 以上のときは、通常の依頼書と再解析依頼書を入れる窓が 2 つ出ます。再解析依頼書の匿名化 ID と医療機関の情報が空欄なら、通常の依頼書から写します（チェックボックスは手で入れてください）。"
               : "Sanger の依頼書は 1 枚に 5 か所までです。各行の末尾に発端者 ID（発端者の解析をかずさ遺伝子検査室で行った場合）を手で追記してください。"}
           </span>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <input
-          ref={input}
-          type="file"
-          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          multiple={mode === "cancer60"}
-          className="hidden"
-          onChange={(e) => onFiles(e.target.files)}
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={() => input.current?.click()} disabled={!!checking}>
-            {checking ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <FileSpreadsheet data-icon="inline-start" />}
-            {checking ? `外部照合中…（${checking.done}/${checking.total} 件完了）` : "依頼書（Excel）を選んで記入する"}
-          </Button>
-          {!checking && unverified > 0 && (
-            <Button variant="outline" onClick={onVerifyRest}>
-              <ShieldCheck data-icon="inline-start" />
-              残り {unverified} 件も照合する
-            </Button>
-          )}
+        <div className={cn("grid gap-2", slots.length > 1 && "sm:grid-cols-2")}>
+          {slots.map((slot, n) => (
+            <SlotPicker
+              key={slot}
+              label={
+                slot === "re"
+                  ? `② 再解析依頼書（${planned === perForm + 1 ? perForm + 1 : `${perForm + 1}〜${Math.min(planned, perForm * 2)}`} か所目）`
+                  : needsSecond
+                    ? `① 通常の依頼書（1〜${perForm} か所目）`
+                    : "依頼書"
+              }
+              file={picked[slot]?.file}
+              checking={checking}
+              primary={!picked[slot] && slots.slice(0, n).every((s) => picked[s])}
+              onPick={(f) => onPick(slot, f)}
+            />
+          ))}
         </div>
+        {!checking && unverified > 0 && (
+          <Button variant="outline" onClick={onVerifyRest}>
+            <ShieldCheck data-icon="inline-start" />
+            残り {unverified} 件も照合する
+          </Button>
+        )}
         {checking ? (
-          <p className="text-xs text-muted-foreground">外部照合が終わると、依頼書を選べるようになります。</p>
+          <p className="text-sm text-muted-foreground">外部照合が終わると、依頼書を選べるようになります。</p>
         ) : unverified > 0 ? (
-          <p className="text-xs text-amber-700 dark:text-amber-400">
+          <p className="text-sm text-amber-700 dark:text-amber-400">
             外部照合が済んでいない結果が {unverified} 件あります。「残り {unverified} 件も照合する」で照合してから記入することをお勧めします。
           </p>
         ) : (
-          checked && <p className="text-xs text-emerald-700 dark:text-emerald-400">外部照合が完了しました。依頼書に記入できます。</p>
+          checked && <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">外部照合が完了しました。依頼書に記入できます。</p>
         )}
-        {needsSecond && (
-          <p className="text-xs text-muted-foreground">
-            5 件以上あるため、通常の依頼書と再解析依頼書の 2 つを一緒に選んでください（Ctrl キーを押しながらクリック）。
-          </p>
-        )}
+        <p className="text-sm text-muted-foreground">
+          {planned === 0
+            ? "依頼書に記入できる結果がありません（理由は「入力の確認」の表を参照してください）。"
+            : needsSecond
+              ? `記入するのは ${planned} か所です。5 か所目以降は再解析依頼書に記入するため、①に通常の依頼書、②に再解析依頼書を入れてください。2 つそろうと記入します。${
+                  planned > perForm * 2 ? `2 つで記入できるのは ${perForm * 2} か所までで、${perForm * 2 + 1} か所目以降は記入されません。` : ""
+                }`
+              : mode === "sanger" && planned > perForm
+                ? `記入するのは ${planned} か所ですが、1 件の依頼書に記入できるのは ${perForm} か所までです。${perForm + 1} か所目以降は別の依頼書でお申し込みください。`
+                : `記入するのは ${planned} か所です。依頼書を 1 つ選ぶと記入します。`}
+        </p>
 
         {error && (
           <Alert variant="destructive">
@@ -238,6 +260,22 @@ export function RequestFormFiller({
 
         {outcome && (
           <div className="space-y-3">
+            {outcome.left.length > 0 && (
+              <Alert className="border-2 border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                <CircleAlert />
+                <AlertTitle className="text-base font-semibold">
+                  記入しきれなかった変異が {outcome.left.length} 件あります。この依頼書だけでは全部を依頼できません
+                </AlertTitle>
+                <AlertDescription className="text-amber-900 dark:text-amber-200">
+                  <p>{outcome.leftReason}</p>
+                  <ul className="list-disc pl-4 font-mono">
+                    {outcome.left.map((e, i) => (
+                      <li key={`${e.input}-${i}`}>{e.input}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
             {outcome.outputs.length > 0 && (
               <div className="space-y-3 rounded-lg border-2 border-emerald-500 bg-emerald-50 p-4 dark:bg-emerald-950/30">
                 <div className="flex items-center gap-2 text-base font-semibold text-emerald-800 dark:text-emerald-300">
@@ -271,20 +309,6 @@ export function RequestFormFiller({
                 </p>
               </div>
             )}
-            {outcome.left.length > 0 && (
-              <Alert>
-                <CircleAlert />
-                <AlertTitle>記入しきれなかった変異 {outcome.left.length} 件</AlertTitle>
-                <AlertDescription>
-                  <p>{outcome.leftReason}</p>
-                  <ul className="list-disc pl-4 font-mono">
-                    {outcome.left.map((e, i) => (
-                      <li key={`${e.input}-${i}`}>{e.input}</li>
-                    ))}
-                  </ul>
-                </AlertDescription>
-              </Alert>
-            )}
             {outcome.skipped.length > 0 && (
               <Alert>
                 <Info />
@@ -304,5 +328,46 @@ export function RequestFormFiller({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function SlotPicker({
+  label,
+  file,
+  checking,
+  primary,
+  onPick,
+}: {
+  label: string;
+  file: File | undefined;
+  checking: { done: number; total: number } | null;
+  primary: boolean;
+  onPick: (file: File | undefined) => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <div className={cn("space-y-2 rounded-lg border p-3", file && "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20")}>
+      <div className="text-sm font-medium">{label}</div>
+      <input
+        ref={input}
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="hidden"
+        onChange={(e) => {
+          onPick(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+      <Button variant={primary ? "default" : "outline"} onClick={() => input.current?.click()} disabled={!!checking}>
+        {checking ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <FileSpreadsheet data-icon="inline-start" />}
+        {checking ? `外部照合中…（${checking.done}/${checking.total} 件完了）` : file ? "選び直す" : "依頼書（Excel）を選ぶ"}
+      </Button>
+      {file && (
+        <div className="flex items-center gap-1.5 text-sm text-emerald-800 dark:text-emerald-300">
+          <CircleCheck className="size-4 shrink-0" />
+          <span className="break-all">{file.name}</span>
+        </div>
+      )}
+    </div>
   );
 }
