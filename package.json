@@ -1,6 +1,6 @@
 {
   "name": "hg38-position-converter",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "data": "node scripts/build-data.mjs --refresh",
