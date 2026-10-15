@@ -22,7 +22,7 @@ export default function Home() {
           </p>
         </div>
       </header>
-      <Converter />
+      <Converter version={version} />
     </main>
   );
 }

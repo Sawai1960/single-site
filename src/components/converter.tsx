@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { RecordPdf, type DataMeta, type FormRecord } from "@/components/record-pdf";
 import { RequestFormFiller } from "@/components/request-form";
 import { effectiveStatus, ResultCard } from "@/components/result-card";
 import { SummaryTable } from "@/components/summary-table";
@@ -52,7 +53,7 @@ const MAX_LINES = 200;
 /** External checks start automatically for the first results only, to stay within NCBI/Ensembl rate limits. */
 const AUTO_VERIFY_RESULTS = 5;
 
-export function Converter() {
+export function Converter({ version }: { version: string }) {
   const [mode, setMode] = useState<KazusaMode | null>(null);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,7 +65,8 @@ export function Converter() {
   const runId = useRef(0);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const details = useRef<HTMLDivElement>(null);
-  const [meta, setMeta] = useState<{ builtAt: string; mane: string; transcripts: number } | null>(null);
+  const [meta, setMeta] = useState<DataMeta | null>(null);
+  const [formRecord, setFormRecord] = useState<FormRecord | null>(null);
 
   useEffect(() => {
     getIndex()
@@ -409,6 +411,20 @@ export function Converter() {
                 mismatch: summaries[i] === "mismatch",
                 unverified: summaries[i] === "unchecked" || summaries[i] === "pending",
               }))}
+              onRecord={setFormRecord}
+            />
+          )}
+          {mode && statuses && summaries && (
+            <RecordPdf
+              results={results}
+              mode={mode}
+              statuses={statuses}
+              summaries={summaries}
+              verification={verification}
+              formRecord={formRecord}
+              meta={meta}
+              version={version}
+              checking={checking ? { done: started - checking, total: started } : null}
             />
           )}
         </section>
@@ -505,7 +521,7 @@ const DISCLAIMER = [
   "患者を特定できる情報（氏名・ID 等）は入力しないでください。",
 ];
 
-function Notes({ meta }: { meta: { builtAt: string; mane: string; transcripts: number } | null }) {
+function Notes({ meta }: { meta: DataMeta | null }) {
   const sources = [
     `転写産物の構造: UCSC Genome Browser hg38 の NCBI RefSeq アライメント（現行版と旧バージョン）${
       meta

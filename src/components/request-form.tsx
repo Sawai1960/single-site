@@ -5,6 +5,7 @@ import { CircleAlert, CircleCheck, Download, FileSpreadsheet, Info, Loader2, Oct
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { FormRecord } from "@/components/record-pdf";
 import { cn } from "@/lib/utils";
 import { MODE_LABEL, type KazusaMode } from "@/lib/variant/kazusa";
 import {
@@ -54,6 +55,7 @@ export function RequestFormFiller({
   checked,
   unverified,
   onVerifyRest,
+  onRecord,
 }: {
   results: ConversionResult[];
   mode: KazusaMode;
@@ -65,6 +67,7 @@ export function RequestFormFiller({
   /** results whose external checks have not been started */
   unverified: number;
   onVerifyRest: () => void;
+  onRecord: (record: FormRecord | null) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -74,6 +77,19 @@ export function RequestFormFiller({
     const urls = outcome?.outputs.map((o) => o.url) ?? [];
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
   }, [outcome]);
+
+  useEffect(() => {
+    onRecord(
+      outcome?.outputs.length
+        ? {
+            files: outcome.outputs.map((o) => ({ name: o.name, label: o.label, entries: o.entries })),
+            skipped: outcome.skipped,
+            left: outcome.left,
+            leftReason: outcome.leftReason,
+          }
+        : null,
+    );
+  }, [outcome, onRecord]);
 
   const planned = planEntries(results, mode, review).entries.length;
   const perForm = FORM_CAPACITY[mode === "cancer60" ? "cancer" : "sanger"];
