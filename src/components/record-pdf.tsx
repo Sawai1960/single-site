@@ -6,7 +6,7 @@ import { FileText, Loader2, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { candidateChecks, SOURCES, type ResultVerification, type VerificationSummary } from "@/components/verification";
+import { candidateChecks, selfDirection, SOURCES, type ResultVerification, type VerificationSummary } from "@/components/verification";
 import { locusText, ninePad } from "@/lib/variant/format";
 import { MODE_LABEL, type KazusaMode } from "@/lib/variant/kazusa";
 import { numberingNote, planEntries, pointNote, requestPoint, spanText, type EntryPlan, type PlannedEntry } from "@/lib/variant/request-form";
@@ -64,7 +64,8 @@ function shortHgvs(s: string): string {
 
 function selfText(c: ResultCandidate): string {
   if (!c.selfCheck) return "—";
-  return c.selfCheck.ok ? "一致" : "不一致";
+  const label = (ok: boolean) => (ok ? "一致" : "不一致");
+  return `順 ${label(selfDirection(c.selfCheck, "forward"))}・逆 ${label(selfDirection(c.selfCheck, "reverse"))}`;
 }
 
 export function RecordPdf({
@@ -283,7 +284,7 @@ function RecordSheet({
 
       <h2 className="mt-4 mb-1 text-[11pt] font-bold">2. 変換結果と照合結果</h2>
       <p className="mb-1">
-        往復: 本ツール内で、同じアライメントを使って c. → hg38 と hg38 → c. を計算し直した結果。NCBI・Ensembl: 外部データベースでの順変換（順: c. → hg38）と逆変換（逆: hg38 → c.）の照合結果。hg38 の位置は、上が座標、下が依頼書用の 9 桁です。2 つ目以降の候補は簡潔に表示し、位置が先頭の候補と同じときは「同上」としています。
+        照合は 3 つの計算 × 2 方向（順: c. → hg38、逆: hg38 → c.）の 6 通りです。本ツール: UCSC のアライメントで両方向に計算し直した結果。外部データベース検証（NCBI・Ensembl）: UCSC を使わない独立した計算との照合結果。hg38 の位置は、上が座標、下が依頼書用の 9 桁です。2 つ目以降の候補は簡潔に表示し、位置が先頭の候補と同じときは「同上」としています。
       </p>
       {results.map((r, i) => (
         <section key={i} className="mt-2">
@@ -299,11 +300,14 @@ function RecordSheet({
             <table className="mt-0.5 w-full border-collapse">
               <thead>
                 <tr>
-                  <th className={th}>転写産物</th>
-                  <th className={th}>遺伝子</th>
-                  <th className={th}>hg38 の位置</th>
-                  <th className={th}>c. / p. 表記</th>
-                  <th className={`${th} whitespace-nowrap`}>往復</th>
+                  <th rowSpan={2} className={th}>転写産物</th>
+                  <th rowSpan={2} className={th}>遺伝子</th>
+                  <th rowSpan={2} className={th}>hg38 の位置</th>
+                  <th rowSpan={2} className={th}>c. / p. 表記</th>
+                  <th rowSpan={2} className={`${th} whitespace-nowrap`}>本ツール</th>
+                  <th colSpan={SOURCES.length} className={th}>外部データベース検証</th>
+                </tr>
+                <tr>
                   {SOURCES.map((s) => (
                     <th key={s.id} className={th}>
                       {s.label}

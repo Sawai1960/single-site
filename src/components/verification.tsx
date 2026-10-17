@@ -150,43 +150,28 @@ function OutcomeCell({ outcome, pending, error, none }: { outcome?: CheckOutcome
   );
 }
 
-function SelfCheckRow({ selfCheck }: { selfCheck: SelfCheck }) {
+/** The in-tool round trip split into its c. → hg38 and hg38 → c. halves. */
+export function selfDirection(selfCheck: SelfCheck, dir: "forward" | "reverse"): boolean {
+  return selfCheck.rows.every((r) => (dir === "forward" ? r.forward === r.pos : r.reverse === r.c));
+}
+
+function SelfCell({ selfCheck, dir }: { selfCheck?: SelfCheck; dir: "forward" | "reverse" }) {
+  if (!selfCheck) return <span className="text-xs text-muted-foreground">—</span>;
   const shown = selfCheck.rows.slice(0, 3);
   return (
-    <div className="grid gap-2 border-b px-3 py-2 sm:grid-cols-[7.5rem_minmax(0,1fr)]">
-      <div className="text-xs">
-        <div className="font-medium">本ツール内の往復</div>
-        <div className="text-muted-foreground">c. ⇄ hg38</div>
-      </div>
-      <div className="min-w-0 space-y-0.5">
-        {selfCheck.ok ? (
-          <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-400">
-            <CheckCircle2 data-icon="inline-start" />
-            一致
-          </Badge>
-        ) : (
-          <Badge variant="destructive">
-            <XCircle data-icon="inline-start" />
-            不一致
-          </Badge>
-        )}
-        {shown.map((r) => (
-          <div
-            key={`${r.c}-${r.pos}`}
-            className={cn("font-mono text-xs break-words", r.ok ? "text-muted-foreground" : "text-destructive")}
-          >
-            {r.c} → {r.forward?.toLocaleString() ?? "計算不可"}
-            {r.forward !== r.pos && `（期待 ${r.pos.toLocaleString()}）`} / {r.pos.toLocaleString()} → {r.reverse ?? "計算不可"}
-          </div>
-        ))}
-        {selfCheck.rows.length > shown.length && (
-          <div className="text-xs text-muted-foreground">ほか {selfCheck.rows.length - shown.length} 塩基</div>
-        )}
-        <div className="text-xs text-muted-foreground">
-          同じ UCSC のアライメントで両方向に計算し直した結果です。計算の誤りは見つけられますが、データ自体の誤りは外部データベースとの照合で確認します。
-        </div>
-      </div>
-    </div>
+    <OutcomeCell
+      outcome={{
+        status: selfDirection(selfCheck, dir) ? "match" : "mismatch",
+        detail: [
+          ...shown.map((r) =>
+            dir === "forward"
+              ? `${r.c} → ${r.forward?.toLocaleString() ?? "計算不可"}${r.forward !== r.pos ? `（期待 ${r.pos.toLocaleString()}）` : ""}`
+              : `${r.pos.toLocaleString()} → ${r.reverse ?? "計算不可"}${r.reverse !== r.c ? `（期待 ${r.c}）` : ""}`,
+          ),
+          ...(selfCheck.rows.length > shown.length ? [`ほか ${selfCheck.rows.length - shown.length} 塩基`] : []),
+        ].join(" / "),
+      }}
+    />
   );
 }
 
@@ -219,41 +204,66 @@ export function VerificationPanel({
           </Button>
         )}
       </div>
-      {selfCheck && <SelfCheckRow selfCheck={selfCheck} />}
-      <div className="border-b bg-muted/20 px-3 py-1 text-xs font-medium">
-        外部データベース
-        <span className="font-normal text-muted-foreground">（UCSC のアライメントを使わない独立した計算）</span>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[34rem] table-fixed text-left text-xs">
+          <colgroup>
+            <col className="w-[7.5rem]" />
+            <col />
+            <col />
+            <col />
+          </colgroup>
+          <thead className="border-b">
+            <tr>
+              <th rowSpan={2} className="px-3 py-1" />
+              <th rowSpan={2} className="border-l px-3 py-1 align-bottom font-medium">
+                本ツール
+                <div className="font-normal text-muted-foreground">UCSC のアライメント</div>
+              </th>
+              <th colSpan={2} className="border-l px-3 pt-1 font-medium">
+                外部データベース検証
+                <span className="ml-1 font-normal text-muted-foreground">（UCSC を使わない独立した計算）</span>
+              </th>
+            </tr>
+            <tr>
+              {SOURCES.map(({ id, label }) => (
+                <th key={id} className="border-l px-3 pb-1 font-medium text-muted-foreground">
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {rows.map((row) => (
+              <tr key={row.key} className="align-top">
+                <td className="px-3 py-2">
+                  <div className="font-mono font-medium">{row.label}</div>
+                  <div className="text-muted-foreground">{row.sub}</div>
+                </td>
+                <td className="min-w-0 border-l px-3 py-2">
+                  <SelfCell selfCheck={selfCheck} dir={row.key} />
+                </td>
+                {SOURCES.map(({ id }) => {
+                  const s = checks[id];
+                  return (
+                    <td key={id} className="min-w-0 border-l px-3 py-2">
+                      <OutcomeCell
+                        pending={s?.state === "pending"}
+                        error={s?.state === "error" ? s.message : undefined}
+                        outcome={s?.state === "done" ? (s.check?.[row.key] ?? undefined) : undefined}
+                        none={s ? (row.none ?? "照合データなし") : "未実行"}
+                      />
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      {started ? (
-        <div className="divide-y">
-          {rows.map((row) => (
-            <div key={row.key} className="grid gap-2 px-3 py-2 sm:grid-cols-[7.5rem_minmax(0,1fr)_minmax(0,1fr)]">
-              <div className="text-xs">
-                <div className="font-mono font-medium">{row.label}</div>
-                <div className="text-muted-foreground">{row.sub}</div>
-              </div>
-              {SOURCES.map(({ id, label }) => {
-                const s = checks[id];
-                return (
-                  <div key={id} className="min-w-0">
-                    <div className="mb-0.5 text-[11px] font-medium text-muted-foreground">{label}</div>
-                    <OutcomeCell
-                      pending={s?.state === "pending"}
-                      error={s?.state === "error" ? s.message : undefined}
-                      outcome={s?.state === "done" ? (s.check?.[row.key] ?? undefined) : undefined}
-                      none={s ? (row.none ?? "照合データなし") : "未実行"}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="px-3 py-2 text-xs text-muted-foreground">
-          NCBI と Ensembl で同じ変換を行い、本ツールの結果と一致するかを確認します。Ensembl は応答に数十秒かかることがあります。
-        </p>
-      )}
+      <p className="border-t px-3 py-2 text-xs text-muted-foreground">
+        本ツールは UCSC のアライメントで両方向に計算し直した結果で、計算の誤りを見つけます。NCBI と Ensembl は UCSC を使わない独立した計算で、データ自体の誤りも確認できます。3 つの計算 × 2 方向の 6 通りがすべて一致すれば、両方の誤りがないことを確認できたことになります。
+        {!started && " 外部データベース検証は「照合する」で実行します。Ensembl は応答に数十秒かかることがあります。"}
+      </p>
     </div>
   );
 }

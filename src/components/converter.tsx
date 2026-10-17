@@ -452,9 +452,10 @@ function FormatGuide() {
     {
       no: "4",
       title: "スプライシング型不明（遺伝子名）",
-      ex: ["KDR:c.889G>A", "EGFR p.Leu858Arg", "SOX9 E75K", "MET c.2888-14_2888-4del11"],
+      ex: ["KDR:c.889G>A", "EGFR p.Leu858Arg", "SOX9 E75K", "MET 2888-14_2888-4del11"],
+      note: "報告書のように c.・p. を省いた書き方（MET 2888-14_2888-4del11、SOX9 E75K）も読み取ります。BRCA1・BRCA2・CFTR は旧来の番号とも照らし合わせ、旧番号と一致したときは現在の c. 表記での入力をお願いします。",
     },
-  ];
+  ] as { no: string; title: string; ex: string[]; note?: string }[];
   return (
     <Card>
       <CardHeader>
@@ -479,6 +480,7 @@ function FormatGuide() {
                     <span key={e}>{e}</span>
                   ))}
                 </div>
+                {r.note && <p className="mt-1 text-xs text-muted-foreground">{r.note}</p>}
               </div>
             </li>
           ))}
