@@ -2,7 +2,7 @@ import { aa3, revComp, translateCodon } from "./codon";
 import { chromToNC } from "./chrom";
 import { locusText } from "./format";
 import { HOMOLOGOUS_GENES } from "./kazusa";
-import { cdsLengthAA, cPosToGenome, cToTx, formatCPos, genomeToC, MappingError, txToC } from "./mapping";
+import { anchorAtExonBoundary, cdsLengthAA, cPosToGenome, cToTx, formatCPos, genomeToC, MappingError, txToC } from "./mapping";
 import { ParseError, expandShorthand, normalizeInput, parseCPos, parseQuery, splitTrailingRemark } from "./parse";
 import {
   accBase,
@@ -403,12 +403,20 @@ export function mapProtein(q: ProteinQuery, t: Transcript): { codon1: number[]; 
 async function convertCdna(
   q: CdnaQuery,
   ts: Transcript[],
+  /** Gene-name input: drop transcripts whose exon edges do not match an intronic c. position. */
+  requireAnchor = false,
 ): Promise<{ candidates: ResultCandidate[]; errors: string[] }> {
   const idx = await getIndex();
   const errors: string[] = [];
   const mapped: { t: Transcript; lo: number; hi: number; warnings: string[] }[] = [];
   for (const t of ts) {
     try {
+      const loose = requireAnchor && [q.start, q.end].find((p) => !anchorAtExonBoundary(t, p));
+      if (loose) {
+        throw new MappingError(
+          `c.${loose.utr3 ? "*" : ""}${loose.base} はこの転写産物ではエクソン境界ではないため、${formatCPos(loose)} という表記は成り立ちません`,
+        );
+      }
       mapped.push({ t, ...mapCdna(q, t) });
     } catch (e) {
       if (e instanceof MappingError) errors.push(`${t.acc}: ${e.message}`);
@@ -977,7 +985,9 @@ async function checkLegacyCdna(input: string, expanded: string, notes: string[])
   if (leg === "no" || (cur === "yes" && leg === "unknown")) {
     notes.push(
       cur === "no"
-        ? `${gene} には旧来の記載方法（${legacy.name}）がありますが、旧来の番号とみなしても一致しませんでした。現在の記載方法（c. 表記）として変換した結果を示します`
+        ? `${gene} には旧来の記載方法（${legacy.name}）がありますが、旧来の番号とみなしても一致しませんでした。${
+            current.status === "error" ? "" : "現在の記載方法（c. 表記）として変換した結果を示します"
+          }`
         : `${gene} には旧来の記載方法（${legacy.name}）がありますが、旧来の番号とみなすと${leg === "no" ? "一致しない" : "照合できない"}ため、現在の記載方法（c. 表記）と判断しました`,
     );
     return undefined;
@@ -1032,7 +1042,7 @@ export async function convertOne(raw: string): Promise<ConversionResult> {
       checkGeneLabel(q.target, resolved.transcripts, notes);
       const r =
         q.kind === "cdna"
-          ? await convertCdna(q, resolved.transcripts)
+          ? await convertCdna(q, resolved.transcripts, q.target.type === "gene")
           : await convertProtein(q, resolved.transcripts);
       candidates = r.candidates;
       errors = r.errors;

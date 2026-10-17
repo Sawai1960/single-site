@@ -148,6 +148,20 @@ describe("形式4: スプライシング型不明", () => {
     const lastMatch = r.candidates.map((c) => c.refCheck?.ok).lastIndexOf(true);
     expect(firstMismatch).toBeGreaterThan(lastMatch);
   });
+
+  it("MET c.2888-14_2888-4del11: 基準位置がエクソン境界でない転写産物は候補から外す", async () => {
+    const r = await convertOne("MET c.2888-14_2888-4del11");
+    expect(r.candidates.map((c) => [c.transcript, c.start])).toEqual([["NM_000245.4", 116771835]]);
+    expect(r.notes).toContain(
+      "変換できなかった候補 — NM_001127500.3: c.2888 はこの転写産物ではエクソン境界ではないため、c.2888-14 という表記は成り立ちません",
+    );
+  });
+
+  it("NM_ を指定したときは、基準位置がエクソン境界でなくても注意を付けて変換する", async () => {
+    const r = await convertOne("NM_001127500.3:c.2888-14_2888-4del11");
+    expect(r.candidates[0]).toMatchObject({ transcript: "NM_001127500.3", start: 116771587 });
+    expect(r.candidates[0].warnings.join()).toContain("基準位置はエクソン境界ではありません");
+  });
 });
 
 describe("c. のない番号と旧来の番号", () => {
@@ -188,10 +202,11 @@ describe("c. のない番号と旧来の番号", () => {
     expect(r.message).toContain("p. 表記");
   });
 
-  it("どちらの番号でも合わなければ、その旨を添えて c. として変換した結果を示す", async () => {
+  it("どちらの番号でも成り立たなければ、その旨を添えて止める", async () => {
     const r = await convertOne("brca2 splice site 7976-1G>A");
-    expect(r.status).toBe("warning");
-    expect(r.notes.join()).toContain("旧来の番号とみなしても一致しませんでした");
+    expect(r.status).toBe("error");
+    expect(r.message).toBe("NM_000059.4: c.7976 はこの転写産物ではエクソン境界ではないため、c.7976-1 という表記は成り立ちません");
+    expect(r.notes).toContain("BRCA2 には旧来の記載方法（BIC 表記）がありますが、旧来の番号とみなしても一致しませんでした。");
   });
 });
 

@@ -144,16 +144,21 @@ export function cPosToGenome(t: Transcript, p: CPos): MappedPos {
   }
   const g = txToGenome(t, tx);
   if (!p.offset) return { genomic: g, warnings };
-  const b = findBlock(t, tx)!;
-  const p0 = tx - 1;
-  const atEnd = p0 === b.qs + b.size - 1;
-  const atStart = p0 === b.qs;
-  if ((p.offset > 0 && !atEnd) || (p.offset < 0 && !atStart)) {
+  if (!anchorAtExonBoundary(t, p)) {
     warnings.push(
       `${formatCPos(p)} の基準位置はエクソン境界ではありません（${t.acc} のエクソン構造と一致しない可能性があります）`,
     );
   }
   return { genomic: t.strand === "+" ? g + p.offset : g - p.offset, warnings };
+}
+
+/** Whether an intronic position (c.N+k / c.N-k) is anchored on the matching exon edge of `t`. */
+export function anchorAtExonBoundary(t: Transcript, p: CPos): boolean {
+  if (!p.offset) return true;
+  const tx = cToTx(t, p);
+  const b = findBlock(t, tx);
+  if (!b) return false;
+  return p.offset > 0 ? b.off === b.size - 1 : b.off === 0;
 }
 
 /** genomic position → c. notation for transcript (exonic or intronic), or undefined if outside */
