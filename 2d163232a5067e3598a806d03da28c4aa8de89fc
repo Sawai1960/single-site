@@ -1,0 +1,407 @@
+{
+  "origin": {
+    "version": 1,
+    "sessionId": "local-7d4a6b85-209e-41d0-aae1-9f59394fa446",
+    "model": "claude-opus-5-5-medium",
+    "agent": "cursor",
+    "promptCount": 149,
+    "promptHash": "sha256:9b1969b816bd7aff01b69d9faf0a663494bc9a8be5df4c2e259ce8b354c7d6ae",
+    "promptTextWithheld": true,
+    "prompts": [
+      {
+        "index": 0,
+        "promptHash": "sha256:3e543ea098a0d172a3fc009bdc8ed44fd39d1d29218961faa8afff032dc6738b",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "src/components/candidate-view.tsx",
+          "src/components/converter.tsx",
+          "src/components/result-card.tsx"
+        ]
+      },
+      {
+        "index": 1,
+        "promptHash": "sha256:ac5f6d21b305dd43ba4824756892ee7714b7ccea7fdb51d453104ff1ce6695f1",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 2,
+        "promptHash": "sha256:f1c6eecf39d99715636cf97dbc2546207675739961c386ba02f55e0b21767b77",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 3,
+        "promptHash": "sha256:05e5f2407c2b6f166ee59443a72244f5be9f49d5c1cbf0be406a23646aecc60b",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 4,
+        "promptHash": "sha256:470e6cfafbcf933fb19b8801392d764537562956b37d820408d7f814b6d5fba1",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "README.md",
+          "src/app/page.tsx",
+          "src/app/layout.tsx"
+        ]
+      },
+      {
+        "index": 5,
+        "promptHash": "sha256:60b807a1d8be6aca1ee0f8fc9a0a030ee6f2ac8ef03597e3bea51ac05b487fda",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 6,
+        "promptHash": "sha256:c75279b6975a99fc9982eb5983fe7ac09b913102e32287e085331c83c46b37b6",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 7,
+        "promptHash": "sha256:3b586dc59d638e28b5c4ef46e8933cfd54455594b9462e7a029eb48c77b89802",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "README.md",
+          "src/app/page.tsx",
+          "src/components/converter.tsx"
+        ]
+      },
+      {
+        "index": 8,
+        "promptHash": "sha256:83220c4c7d69d12c557fe903b53baf82398a1ddcf050d3b25772c7e19f3dde38",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 9,
+        "promptHash": "sha256:8f8f28fc68ec2c0ceaff36b46d9e318f39661fbc8980b2f1a104cd29edb05441",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 10,
+        "promptHash": "sha256:3e8c816e1f933904db142c6455f4df2bbee0b0de49212b467145be611ef21ddf",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 11,
+        "promptHash": "sha256:1a181fe395882abe4909ae2211daed98db6d55a9c16d14b6122a64e80d08794c",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 12,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 13,
+        "promptHash": "sha256:9462ac2356d4a9f227f56f4c554bbe58a17592aa9df1f8867031f7864a11369f",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 14,
+        "promptHash": "sha256:6fca8b350ffc9a98ce1eb9d17afa113afefe5ae9d6f0adf6068e75a266ded673",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 15,
+        "promptHash": "sha256:bd4534081d6fb407a62f91ebe2848ac1eedf7fd72c836d0b10e5c52d4a0bb4e0",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 16,
+        "promptHash": "sha256:11cdc804eae9c4687b2bda3b5bafbfb14f62dab00accdb52d1d55d50551f7795",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 17,
+        "promptHash": "sha256:29468afa3417aa50dd22483cbbddcd3242e8fbde750ed2b895766754cfa25ca8",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "scripts/build-data.mjs",
+          ".gitignore",
+          "src/lib/variant/refseq.ts",
+          "src/lib/variant/convert.ts",
+          "src/lib/variant/remote.ts",
+          "src/components/converter.tsx",
+          "src/components/verification.tsx",
+          "next.config.ts",
+          "tests/setup.ts",
+          "vitest.config.ts",
+          "tests/global-setup.ts",
+          "tests/mapping.test.ts",
+          "tests/convert.test.ts",
+          "validation/fetch-clinvar.mjs",
+          "validation/validate-clinvar.ts",
+          "validation/validate-external.ts",
+          "scripts/preview.mjs",
+          "scripts/publish.mjs",
+          "package.json",
+          "README.md",
+          "HANDOFF.md"
+        ]
+      },
+      {
+        "index": 18,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "README.md",
+          "HANDOFF.md"
+        ]
+      },
+      {
+        "index": 19,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 20,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 21,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 22,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 23,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 24,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "src/components/converter.tsx"
+        ]
+      },
+      {
+        "index": 25,
+        "promptHash": "sha256:259bf726d13869c7aed8ccf3784c3c1566530d7f17f1278350ba282c27d23906",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "src/components/converter.tsx"
+        ]
+      },
+      {
+        "index": 26,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "起動.bat"
+        ]
+      },
+      {
+        "index": 27,
+        "promptHash": "sha256:249a106106b1813820447988550dbbdbae36a380b5f7d31985dd6156ccbd1a01",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "起動.bat"
+        ]
+      },
+      {
+        "index": 28,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 29,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "起動.bat"
+        ]
+      },
+      {
+        "index": 30,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 31,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 32,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "validation/polite-fetch.ts",
+          "validation/validate-clinvar.ts",
+          "validation/clinvar-common.ts",
+          "validation/validate-browser.ts"
+        ]
+      },
+      {
+        "index": 33,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "validation/validate-clinvar.ts",
+          "validation/clinvar-common.ts",
+          "validation/polite-fetch.ts",
+          "validation/validate-browser.ts",
+          "validation/report.md",
+          "validation/report-browser.md",
+          "README.md"
+        ]
+      },
+      {
+        "index": 34,
+        "promptHash": "sha256:4f7ace6e2dafc87e803842287eaa28a7c52b5513d0f91a03586372351d3ba20e",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "README.md"
+        ]
+      },
+      {
+        "index": 35,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 36,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "src/lib/variant/convert.ts",
+          "tests/convert.test.ts"
+        ]
+      },
+      {
+        "index": 37,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "src/lib/variant/convert.ts",
+          "tests/convert.test.ts"
+        ]
+      },
+      {
+        "index": 38,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 39,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 40,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 41,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 42,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 43,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 44,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 45,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 46,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 47,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium"
+      },
+      {
+        "index": 48,
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "src/components/converter.tsx"
+        ]
+      },
+      {
+        "index": 49,
+        "promptHash": "sha256:775dab5219900d64e835789b61af214dcc06a2286d038d4f7f834e31841cadd2",
+        "agent": "cursor",
+        "model": "claude-opus-5-5-medium",
+        "files": [
+          "src/components/converter.tsx"
+        ]
+      }
+    ],
+    "durationMs": 273569763,
+    "linesAdded": 3,
+    "linesRemoved": 3,
+    "originUrl": "https://getorigin.io/sessions/local-7d4a6b85-209e-41d0-aae1-9f59394fa446",
+    "timestamp": "2026-10-17T11:48:17.229Z"
+  },
+  "attribution_record": {
+    "schema_version": "1.0",
+    "revision": {
+      "vcs": "git",
+      "id": "2d163232a5067e3598a806d03da28c4aa8de89fc"
+    },
+    "attribution_level": "commit",
+    "recorded_at": "2026-10-17T11:48:17.229Z",
+    "producer": {
+      "name": "origin-cli",
+      "version": "0.20261014.246"
+    },
+    "contributions": [
+      {
+        "evidence": "session_capture",
+        "agent": {
+          "id": "cursor"
+        },
+        "model": {
+          "id": "claude-opus-5-5-medium"
+        },
+        "session": {
+          "id": "local-7d4a6b85-209e-41d0-aae1-9f59394fa446",
+          "started_at": "2026-10-14T07:48:47.362Z",
+          "duration_ms": 273569867
+        }
+      }
+    ]
+  }
+}
