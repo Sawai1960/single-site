@@ -276,12 +276,15 @@ export function Converter({ version }: { version: string }) {
                 ))}
               </div>
             )}
-            <div className="mt-2 flex items-center gap-2 border-t pt-4 text-sm font-medium">
-              <StepBadge n={3} />
-              変換してください
+            <div className="mt-2 space-y-1 border-t pt-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <StepBadge n={3} />
+                変換してください
+              </div>
+              <p className="text-xs text-muted-foreground">①と②が済むとボタンの色が濃くなり、押せるようになります。</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="lg" onClick={run} disabled={!mode || !lines.length || loading}>
+              <Button size="lg" className="disabled:opacity-30" onClick={run} disabled={!mode || !lines.length || loading}>
                 {loading ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <ArrowRightLeft data-icon="inline-start" />}
                 {loading
                   ? "変換中…"
@@ -334,9 +337,12 @@ export function Converter({ version }: { version: string }) {
       {results && counts && mode && statuses && summaries && (
         <section className={loading ? "space-y-3 opacity-60 transition-opacity" : "space-y-3"} aria-live="polite">
           <div>
-            <h2 className="text-lg font-semibold">入力の確認</h2>
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <StepBadge n={4} className="size-6 text-sm" />
+              入力を確認してください
+            </h2>
             <p className="text-sm text-muted-foreground">
-              依頼書に書く遺伝子と位置の一覧です。入力した変異と合っているか確認してください。外部データベースとの照合は、確認している間に進めています。照合が終わると詳しい結果を表示できます。
+              下の表の遺伝子・NM 番号・hg38 の位置が、入力した変異と合っているか確認したら、「詳細表示」を押してください。外部データベースとの照合は、確認している間に進めています。
             </p>
           </div>
           <SummaryTable results={results} mode={mode} statuses={statuses} summaries={summaries} />
@@ -344,10 +350,13 @@ export function Converter({ version }: { version: string }) {
             {!revealed && (
               <Button size="lg" onClick={reveal} disabled={checking > 0}>
                 {checking > 0 ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <ChevronDown data-icon="inline-start" />}
-                {checking > 0
-                  ? `外部照合中…（${started - checking}/${started} 件完了）`
-                  : "この内容で詳しい結果を表示する"}
+                {checking > 0 ? "照合中…" : "詳細表示"}
               </Button>
+            )}
+            {!revealed && checking > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {started - checking}/{started} 件完了
+              </span>
             )}
             <Button variant="outline" size="lg" onClick={backToInput}>
               <PencilLine data-icon="inline-start" />
@@ -454,11 +463,14 @@ export function Converter({ version }: { version: string }) {
   );
 }
 
-function StepBadge({ n }: { n: number }) {
+function StepBadge({ n, className }: { n: number; className?: string }) {
   return (
     <span
       aria-label={`手順 ${n}`}
-      className="flex size-5 shrink-0 items-center justify-center rounded-full bg-neutral-800 text-xs font-bold text-white dark:bg-neutral-200 dark:text-neutral-900"
+      className={cn(
+        "flex size-5 shrink-0 items-center justify-center rounded-full bg-neutral-800 text-xs font-bold text-white dark:bg-neutral-200 dark:text-neutral-900",
+        className,
+      )}
     >
       {n}
     </span>

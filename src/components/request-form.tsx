@@ -267,7 +267,7 @@ export function RequestFormFiller({
         )}
         <p className="text-sm text-muted-foreground">
           {planned === 0
-            ? "依頼書に記入できる結果がありません（理由は「入力の確認」の表を参照してください）。"
+            ? "依頼書に記入できる結果がありません（理由は「④ 入力を確認してください」の表を参照してください）。"
             : needsSecond
               ? `記入するのは ${planned} か所です。5 か所目以降は再解析依頼書に記入するため、①に通常の依頼書、②に再解析依頼書を入れてください。2 つそろうと記入します。${
                   planned > perForm * 2 ? `2 つで記入できるのは ${perForm * 2} か所までで、${perForm * 2 + 1} か所目以降は記入されません。` : ""
