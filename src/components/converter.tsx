@@ -183,20 +183,16 @@ export function Converter({ version }: { version: string }) {
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Card className="border-t-4 border-t-blue-600 shadow-md ring-blue-200 dark:border-t-blue-500 dark:ring-blue-900">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2.5 text-lg font-bold">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white dark:bg-blue-500">
-                <PencilLine className="size-4" />
-              </span>
-              変異の位置情報を入力
-            </CardTitle>
-            <CardDescription className="pl-[2.625rem]">検査の区分を選び、変異を入力して変換します。</CardDescription>
+        <Card className="pt-0 shadow-md ring-blue-200 dark:ring-blue-900">
+          <CardHeader className="border-b border-[#c9d9f2] bg-[#e3edfb] py-3 dark:border-blue-900 dark:bg-blue-950/50">
+            <CardTitle className="text-lg font-bold text-[#1e3a6e] dark:text-blue-100">変異の位置情報を入力</CardTitle>
+            <CardDescription className="text-[#46608c] dark:text-blue-200/80">検査の区分を選び、変異を入力して変換します。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">
-                ① 検査の区分を選んでください（必須）
+              <legend className="flex items-center gap-2 text-sm font-medium">
+                <StepBadge n={1} />
+                検査の区分を選んでください（必須）
               </legend>
               <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="検査の区分">
                 {MODES.map((m) => (
@@ -243,7 +239,10 @@ export function Converter({ version }: { version: string }) {
               </details>
             </fieldset>
             <div className="mt-2 space-y-1 border-t pt-4">
-              <div className="text-sm font-medium">② 変異を入力してください</div>
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <StepBadge n={2} />
+                変異を入力してください
+              </div>
               <p className="text-xs text-muted-foreground">
                 1 行に 1 件ずつ、Enter で改行して入力してください。複数行をまとめて変換できます（最大 {MAX_LINES} 行）。枠内の薄い文字は入力例で、書き始めると消えます。
               </p>
@@ -277,7 +276,11 @@ export function Converter({ version }: { version: string }) {
                 ))}
               </div>
             )}
-            <div className="flex flex-wrap items-center gap-2 pt-1">
+            <div className="mt-2 flex items-center gap-2 border-t pt-4 text-sm font-medium">
+              <StepBadge n={3} />
+              変換してください
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
               <Button size="lg" onClick={run} disabled={!mode || !lines.length || loading}>
                 {loading ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <ArrowRightLeft data-icon="inline-start" />}
                 {loading
@@ -451,6 +454,17 @@ export function Converter({ version }: { version: string }) {
   );
 }
 
+function StepBadge({ n }: { n: number }) {
+  return (
+    <span
+      aria-label={`手順 ${n}`}
+      className="flex size-5 shrink-0 items-center justify-center rounded-full bg-neutral-800 text-xs font-bold text-white dark:bg-neutral-200 dark:text-neutral-900"
+    >
+      {n}
+    </span>
+  );
+}
+
 function FormatGuide() {
   const rows = [
     { no: "1", title: "ゲノム位置", ex: ["hg38, chr1:195507262", "hg19 chr7:55259515 T>G", "NC_000004.12:g.55113391C>T", "NC_012920.1:m.3243A>G"] },
@@ -477,7 +491,7 @@ function FormatGuide() {
         <ol className="space-y-3">
           {rows.map((r) => (
             <li key={r.no} className="flex gap-3">
-              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-foreground/30 text-xs font-semibold text-foreground/70">
                 {r.no}
               </span>
               <div className="min-w-0">
