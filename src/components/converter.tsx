@@ -183,10 +183,15 @@ export function Converter({ version }: { version: string }) {
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Card>
+        <Card className="border-t-4 border-t-blue-600 shadow-md ring-blue-200 dark:border-t-blue-500 dark:ring-blue-900">
           <CardHeader>
-            <CardTitle>変異の位置情報を入力</CardTitle>
-            <CardDescription>検査の区分を選び、変異を入力して変換します。</CardDescription>
+            <CardTitle className="flex items-center gap-2.5 text-lg font-bold">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white dark:bg-blue-500">
+                <PencilLine className="size-4" />
+              </span>
+              変異の位置情報を入力
+            </CardTitle>
+            <CardDescription className="pl-[2.625rem]">検査の区分を選び、変異を入力して変換します。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <fieldset className="space-y-2">
@@ -237,7 +242,7 @@ export function Converter({ version }: { version: string }) {
                 </p>
               </details>
             </fieldset>
-            <div className="space-y-1 pt-1">
+            <div className="mt-2 space-y-1 border-t pt-4">
               <div className="text-sm font-medium">② 変異を入力してください</div>
               <p className="text-xs text-muted-foreground">
                 1 行に 1 件ずつ、Enter で改行して入力してください。複数行をまとめて変換できます（最大 {MAX_LINES} 行）。枠内の薄い文字は入力例で、書き始めると消えます。
