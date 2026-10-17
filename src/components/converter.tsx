@@ -449,7 +449,7 @@ function FormatGuide() {
     {
       no: "4",
       title: "スプライシング型不明（遺伝子名）",
-      ex: ["KDR:c.889G>A", "EGFR p.Leu858Arg", "SOX9 E75K", "MET exon 14 splice site (2888-14_2888-4del11)"],
+      ex: ["KDR:c.889G>A", "EGFR p.Leu858Arg", "SOX9 E75K", "MET c.2888-14_2888-4del11"],
     },
   ];
   return (

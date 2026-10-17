@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ParseError, expandShorthand, parseQuery } from "../src/lib/variant/parse";
+import { ParseError, expandShorthand, parseQuery, splitTrailingRemark } from "../src/lib/variant/parse";
 
 describe("形式1: ゲノム位置", () => {
   it.each([
@@ -126,12 +126,12 @@ describe("「c.」「p.」が省かれた表記（FoundationOne の報告書な�
     ["SOX9 Glu75Lys", "SOX9 p.Glu75Lys"],
     ["EGFR exon 19 deletion (E746_A750del)", "EGFR p.E746_A750del"],
     ["APC Q1338fs*2", "APC p.Q1338fs*2"],
+    ["PTEN M1?", "PTEN p.M1?"],
+    ["TP53 R175H (VAF 45%)", "TP53 p.R175H"],
+    ["TP53 R175H 45.2%", "TP53 p.R175H"],
+    ["KMT2D (MLL2) P2354L", "KMT2D p.P2354L"],
+    ["NM_002253.2, c.889G>A", undefined],
     ["KRAS", undefined],
-    ["MET exon 14 splice site (2888-14_2888-4del11)", "MET c.2888-14_2888-4del11"],
-    ["MET 2888-14_2888-4del11", "MET c.2888-14_2888-4del11"],
-    ["MET splice site 3028+1G>T", "MET c.3028+1G>T"],
-    ["MET splice site (3028+1G>T)", "MET c.3028+1G>T"],
-    ["BRCA2 6174delT", "BRCA2 c.6174delT"],
     ["KDR c.889G>A", undefined],
     ["EGFR p.Leu858Arg", undefined],
     ["hg38, chr1:195507262", undefined],
@@ -142,14 +142,16 @@ describe("「c.」「p.」が省かれた表記（FoundationOne の報告書な�
     expect(expandShorthand(input)).toBe(expected);
   });
 
-  it("c. 表記として変換する", () => {
-    expect(parseQuery("MET exon 14 splice site (2888-14_2888-4del11)")).toMatchObject({
-      kind: "cdna",
-      target: { type: "gene", symbol: "MET" },
-      start: { base: 2888, offset: -14 },
-      end: { base: 2888, offset: -4 },
-      varType: "deletion",
-    });
+  it.each([
+    ["MET exon 14 splice site (2888-14_2888-4del11)", "「MET c.2888-14_2888-4del11」"],
+    ["MET 2888-14_2888-4del11", "「MET c.2888-14_2888-4del11」"],
+    ["MET splice site 3028+1G>T", "「MET c.3028+1G>T」"],
+    ["MET splice site (3028+1G>T)", "「MET c.3028+1G>T」"],
+    ["TERT promoter -124C>T", "「TERT c.-124C>T」"],
+    ["CFTR 621+1G>T", "「CFTR c.621+1G>T」"],
+  ])("c. のない番号は読み替えず、c. を付けた形を案内する: %s", (input, hint) => {
+    expect(() => parseQuery(input)).toThrow(/c\. のない番号/);
+    expect(() => parseQuery(input)).toThrow(hint);
   });
 
   it("p. 表記として変換する", () => {
@@ -170,6 +172,63 @@ describe("「c.」「p.」が省かれた表記（FoundationOne の報告書な�
   ])("遺伝子名がなければ、付けるよう案内する: %s", (input, hint) => {
     expect(() => parseQuery(input)).toThrow(/遺伝子名がないため変換できません/);
     expect(() => parseQuery(input)).toThrow(hint);
+  });
+
+  it.each(["BRCA2 6174delT", "BRCA1 185delAG", "BRCA1 5382insC", "brca2 splice site 7976-1G>A"])(
+    "BRCA1/2 の c. のない番号は BIC 旧表記の可能性があるので読み替えない: %s",
+    (input) => {
+      expect(() => parseQuery(input)).toThrow(/BIC 旧表記/);
+    },
+  );
+
+  it("BRCA1/2 でも p. の省略は読む", () => {
+    expect(expandShorthand("BRCA2 S1982fs*22")).toBe("BRCA2 p.S1982fs*22");
+  });
+
+  it.each([
+    ["BRCA1 c.68_69delAG (p.Glu23Valfs*17)", "BRCA1 c.68_69delAG", "p.Glu23Valfs*17"],
+    ["BRCA1 c.68_69delAG (185delAG)", "BRCA1 c.68_69delAG", "185delAG"],
+    ["NM_000059.4:c.5946delT (p.Ser1982Argfs*22)", "NM_000059.4:c.5946delT", "p.Ser1982Argfs*22"],
+    ["BRCA1 c.68_69delAG, p.Glu23Valfs*17", "BRCA1 c.68_69delAG", "p.Glu23Valfs*17"],
+  ])("c. 表記の後ろの括弧書きは読み飛ばす: %s", (input, main, remark) => {
+    expect(splitTrailingRemark(input)).toEqual({ main, remark });
+    expect(parseQuery(input)).toMatchObject({ kind: "cdna", varType: "deletion" });
+  });
+
+  it.each(["NM_002253.2(KDR):c.889G>A", "TP53:p.(Arg175His)", "chrX:100-200 (hg38)", "NM_000546.6:c.375+1G>A"])(
+    "括弧書きのない入力はそのまま: %s",
+    (input) => {
+      expect(splitTrailingRemark(input)).toBeUndefined();
+    },
+  );
+
+  it.each(["BRCA2 R2336H, splice site 7976-1G>A", "TP53 c.524G>A; c.743G>A", "KRAS G12D、G13D"])(
+    "1 行に複数の変異があれば止める: %s",
+    (input) => {
+      expect(() => parseQuery(input)).toThrow(/1 行に複数の変異/);
+    },
+  );
+
+  it.each([
+    "hg38, chr1:195507262",
+    "hg38 chr1:195,507,262",
+    "chr4:55,000,000-55,000,010",
+    "NM_002253.2, c.889G>A",
+    "hg19, chr17:7578406 T>G",
+  ])("カンマを含む 1 件の入力は止めない: %s", (input) => {
+    expect(() => parseQuery(input)).not.toThrow();
+  });
+
+  it.each([
+    "ERBB2 amplification",
+    "CDKN2A/B loss",
+    "EML4-ALK fusion",
+    "BRCA2 rearrangement intron 2",
+    "APC truncation exon 16",
+    "MLH1 loss exons 1-19",
+    "BRCA1 exon 11 deletion",
+  ])("位置を 1 点に指定できない変化は理由を示す: %s", (input) => {
+    expect(() => parseQuery(input)).toThrow(/シングルサイト検査の対象外/);
   });
 });
 

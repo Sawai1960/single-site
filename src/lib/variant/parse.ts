@@ -108,16 +108,35 @@ function parseProtein(rest: string, target: QueryTarget): ParsedQuery {
 const BARE_CDNA_RE = new RegExp(String.raw`^(${CPOS_RE}(?:_${CPOS_RE})?)((?:del|dup|ins|inv)[A-Za-z0-9]*|[ACGT]>[ACGT])$`, "i");
 const AA = String.raw`(?:[A-Z][a-z]{2}|[A-Z*])`;
 const BARE_PROTEIN_RE = new RegExp(
-  String.raw`^${AA}\d+(?:_${AA}\d+)?(?:${AA}(?:fs(?:\*|Ter)?\d*)?|fs(?:\*|Ter)?\d*|delins[A-Za-z*]+|del|dup|ins[A-Za-z*]+|=)$`,
+  String.raw`^${AA}\d+(?:_${AA}\d+)?(?:${AA}(?:fs(?:\*|Ter)?\d*)?|fs(?:\*|Ter)?\d*|delins[A-Za-z*]+|del|dup|ins[A-Za-z*]+|=|\?)$`,
 );
 const NOT_GENE = /^(exon|intron|splice|site|c|p)$/i;
+const NOT_SINGLE_SITE =
+  /\b(amplification|amplified|amp|loss|homozygous|deletion|deleted|duplication|fusion|rearrangement|rearranged|truncation|copy number|cnv)\b/i;
+
+/** Drops a trailing allele fraction copied with the variant, e.g. "(VAF 45%)" or "45%". */
+function stripAlleleFraction(s: string): string {
+  return s.replace(/\s*[(（]?\s*(?:VAF|MAF|AF)?\s*[:=]?\s*\d+(?:\.\d+)?\s*[%％]\s*[)）]?\s*$/i, "");
+}
+
+function looksLikeVariant(part: string): boolean {
+  return part
+    .split(/[\s()]+/)
+    .some((t) => BARE_CDNA_RE.test(t) || BARE_PROTEIN_RE.test(t) || /^[cpgm]\.\S/i.test(t));
+}
 
 /**
- * FoundationOne-style shorthand without "c." / "p.": "MET exon 14 splice site (2888-14_2888-4del11)" →
- * "MET c.2888-14_2888-4del11", "SOX9 E75K" → "SOX9 p.E75K". Undefined when the input is not of that form.
+ * FoundationOne-style protein shorthand without "p.": "SOX9 E75K" → "SOX9 p.E75K". Undefined when the input
+ * is not of that form. Bare cDNA numbers ("MET 2888-14_2888-4del11") are rejected with the c. form to type,
+ * since their numbering may be a legacy scheme offset from c. (BIC, CFTR legacy names).
  */
 export function expandShorthand(raw: string): string | undefined {
-  const s = normalizeInput(raw);
+  const s = normalizeInput(stripAlleleFraction(normalizeInput(raw)));
+  const variants = s.split(/[,;、]/).filter(looksLikeVariant);
+  const cWithP = variants.length === 2 && /\bc\s*\./i.test(variants[0]) && /^\s*p\s*\./i.test(variants[1]);
+  if (variants.length > 1 && !cWithP) {
+    throw new ParseError("1 行に複数の変異が書かれています。1 行に 1 件ずつ、改行して入力してください");
+  }
   if (/\b[cpgm]\s*\./i.test(s)) return undefined;
   const paren = s.match(/\(([^()]+)\)\s*$/);
   const tokens = (paren ? s.slice(0, paren.index) : s).trim().split(" ").filter(Boolean);
@@ -128,13 +147,36 @@ export function expandShorthand(raw: string): string | undefined {
   if (!gene || NOT_GENE.test(gene) || /^\d/.test(gene)) {
     throw new ParseError(`遺伝子名がないため変換できません。報告書の遺伝子名を先頭に付けて「遺伝子名 ${type}.${variant}」の形で入力してください`);
   }
+  if (type === "c" && /^BRCA[12]$/i.test(gene)) {
+    throw new ParseError(
+      `BRCA1/2 で c. のない番号（${variant}）は、BIC 旧表記（例: 185delAG、6174delT）のことがあります。BIC 旧表記は c. 表記と番号がずれる（BRCA1 で約 119、BRCA2 で約 228）ため、自動では読み替えません。報告書の c. 表記で入力してください`,
+    );
+  }
+  if (type === "c") {
+    throw new ParseError(
+      `c. のない番号（${variant}）は自動では読み替えません。遺伝子によっては旧来の番号の付け方で c. 表記とずれていることがあります。報告書の番号が c. 表記であることを確かめて、「${gene} c.${variant}」の形で入力してください`,
+    );
+  }
   return `${gene} ${type}.${variant}`;
+}
+
+/**
+ * A c. notation followed by a remark copied from the report: "c.68_69delAG (p.Glu23Valfs*17)",
+ * "c.68_69delAG (185delAG)", "c.68_69delAG, p.Glu23Valfs*17". Undefined when there is none.
+ */
+export function splitTrailingRemark(raw: string): { main: string; remark: string } | undefined {
+  const s = normalizeInput(stripAlleleFraction(normalizeInput(raw)));
+  const m = s.match(/^(.*\bc\s*\.\s*[^\s(),;]+)\s*(?:\(([^()]*)\)|[,;]\s*(p\s*\.\s*\S+))\s*$/i);
+  if (!m) return undefined;
+  return { main: m[1], remark: (m[2] ?? m[3]).trim() };
 }
 
 export function parseQuery(raw: string): ParsedQuery {
   const expanded = expandShorthand(raw);
   if (expanded) return parseQuery(expanded);
-  const s = normalizeInput(raw);
+  const remark = splitTrailingRemark(raw);
+  if (remark) return parseQuery(remark.main);
+  const s = normalizeInput(stripAlleleFraction(normalizeInput(raw)));
   if (!s) throw new ParseError("入力が空です");
 
   // m.3243A>G, NC_012920.1:m.3243A>G, MT-TL1:m.3243A>G
@@ -226,5 +268,9 @@ export function parseQuery(raw: string): ParsedQuery {
 
   if (/^[cp]\./i.test(s))
     throw new ParseError("遺伝子名または NM_/NP_ 番号を先頭に付けてください（例: KDR:c.889G>A）");
+  if (NOT_SINGLE_SITE.test(s))
+    throw new ParseError(
+      "増幅・欠失（loss）・融合遺伝子・再構成など、位置を 1 点に指定できない変化は、シングルサイト検査の対象外です。c. 表記や p. 表記のある変異を入力してください",
+    );
   throw new ParseError("入力形式を判別できません。下の「対応している入力形式」を参照してください");
 }
