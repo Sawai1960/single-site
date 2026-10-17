@@ -191,7 +191,7 @@ function SameSiteTable({
       </summary>
       <div className="space-y-2 border-t px-3 py-2">
         <p className="text-xs text-muted-foreground">
-          ゲノム位置で入力した場合、転写産物（スプライシング型）ごとに変わるのは c. 番号だけで、hg38 の位置と依頼書に書く内容は同じです。そのため、代表の 1 件（MANE Select があればそれ）だけを上に詳しく表示し、残りをこの一覧にまとめています。外部照合で不一致がある転写産物と、別の遺伝子の転写産物は、まとめずに上に表示します。
+          ここにまとめた転写産物（スプライシング型）は、上の代表の 1 件（MANE Select があればそれ）と hg38 の位置が同じで、依頼書に書く内容も同じです。位置が違う転写産物、別の遺伝子の転写産物、外部照合で不一致がある転写産物、代表にない注意が付いた転写産物は、まとめずに上に表示します。
         </p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[30rem] text-sm">
@@ -254,11 +254,17 @@ export function ResultCard({
   const pool = matched.length ? matched : mismatched;
   const secondary = matched.length ? mismatched : [];
   const mapped = result.format !== undefined && result.format > 1;
-  // Genomic input: every overlapping transcript gives the same hg38 position and request entry,
-  // so only one representative (plus anything that needs attention) is shown as a full card.
-  const lead = result.format === 1 && pool.length > 1 ? (pool.find(({ c }) => c.mane) ?? pool[0]) : undefined;
+  // Transcripts that give the same hg38 position give the same request entry, so only one representative
+  // (plus anything that needs attention) is shown as a full card.
+  const lead = result.format !== undefined && pool.length > 1 ? (pool.find(({ c }) => c.mane) ?? pool[0]) : undefined;
+  const differs = (c: ResultCandidate) =>
+    result.format !== 1 &&
+    (c.chrom !== lead!.c.chrom ||
+      c.start !== lead!.c.start ||
+      c.end !== lead!.c.end ||
+      c.warnings.some((w) => !lead!.c.warnings.includes(w)));
   const primary = lead
-    ? pool.filter((x) => x === lead || x.c.gene !== lead.c.gene || hasMismatch(verification, x.i))
+    ? pool.filter((x) => x === lead || x.c.gene !== lead.c.gene || hasMismatch(verification, x.i) || differs(x.c))
     : pool;
   const grouped = lead ? pool.filter((x) => !primary.includes(x)) : [];
   const visible = showAll ? primary : primary.slice(0, INITIAL_VISIBLE);
