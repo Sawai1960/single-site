@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import type { VerificationSummary } from "@/components/verification";
 import { cn } from "@/lib/utils";
 import type { KazusaMode } from "@/lib/variant/kazusa";
-import { planEntries } from "@/lib/variant/request-form";
+import { planEntries, pointNote, requestPoint, spanText } from "@/lib/variant/request-form";
 import type { ConversionResult } from "@/lib/variant/types";
 
 type ResultStatus = ConversionResult["status"];
@@ -60,6 +60,7 @@ export function SummaryTable({
             const entry = plan.entries.find((e) => e.index === i);
             const skip = plan.skipped.find((s) => s.index === i);
             const top = r.candidates[0];
+            const point = entry?.point ?? (top ? requestPoint(top) : undefined);
             const note = r.status === "error" ? r.message : (skip?.reason ?? entry?.notes[0]);
             const check = CHECK[summaries[i]];
             return (
@@ -73,14 +74,18 @@ export function SummaryTable({
                       ? mode === "sanger"
                         ? entry.text
                         : String(entry.pos).padStart(9, "0")
-                      : top
-                        ? <span className="text-muted-foreground">{`${top.chrom}:${top.start}`}</span>
+                      : point
+                        ? <span className="text-muted-foreground">{`${point.chrom}:${point.pos}`}</span>
                         : "—"}
                   </div>
+                  {point?.span && <div className="font-mono text-xs text-muted-foreground">{spanText(point)}</div>}
                   {note && (
                     <div className={cn("mt-0.5 text-xs", skip || r.status === "error" ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
                       {note}
                     </div>
+                  )}
+                  {!entry && point && pointNote(point) && (
+                    <div className="mt-0.5 text-xs text-muted-foreground">{pointNote(point)}</div>
                   )}
                 </td>
                 <td className="px-3 py-2">

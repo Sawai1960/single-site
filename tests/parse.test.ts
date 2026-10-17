@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ParseError, parseQuery } from "../src/lib/variant/parse";
+import { ParseError, expandShorthand, parseQuery } from "../src/lib/variant/parse";
 
 describe("形式1: ゲノム位置", () => {
   it.each([
@@ -115,6 +115,61 @@ describe("形式3/4: p. 表記", () => {
   it("欠失 p. 表記では変異後アミノ酸を持たない", () => {
     const q = parseQuery("EGFR:p.Glu746_Ala750del");
     expect(q.kind === "protein" && q.altAA).toBeFalsy();
+  });
+});
+
+describe("「c.」「p.」が省かれた表記（FoundationOne の報告書など）", () => {
+  it.each([
+    ["SOX9 E75K", "SOX9 p.E75K"],
+    ["KRAS G12D", "KRAS p.G12D"],
+    ["BRCA1 R1443*", "BRCA1 p.R1443*"],
+    ["SOX9 Glu75Lys", "SOX9 p.Glu75Lys"],
+    ["EGFR exon 19 deletion (E746_A750del)", "EGFR p.E746_A750del"],
+    ["APC Q1338fs*2", "APC p.Q1338fs*2"],
+    ["KRAS", undefined],
+    ["MET exon 14 splice site (2888-14_2888-4del11)", "MET c.2888-14_2888-4del11"],
+    ["MET 2888-14_2888-4del11", "MET c.2888-14_2888-4del11"],
+    ["MET splice site 3028+1G>T", "MET c.3028+1G>T"],
+    ["MET splice site (3028+1G>T)", "MET c.3028+1G>T"],
+    ["BRCA2 6174delT", "BRCA2 c.6174delT"],
+    ["KDR c.889G>A", undefined],
+    ["EGFR p.Leu858Arg", undefined],
+    ["hg38, chr1:195507262", undefined],
+    ["chrX:100-200 (hg38)", undefined],
+    ["hg19 chr7:55259515 T>G", undefined],
+    ["NC_000004.12:g.55113391C>T", undefined],
+  ])("%s", (input, expected) => {
+    expect(expandShorthand(input)).toBe(expected);
+  });
+
+  it("c. 表記として変換する", () => {
+    expect(parseQuery("MET exon 14 splice site (2888-14_2888-4del11)")).toMatchObject({
+      kind: "cdna",
+      target: { type: "gene", symbol: "MET" },
+      start: { base: 2888, offset: -14 },
+      end: { base: 2888, offset: -4 },
+      varType: "deletion",
+    });
+  });
+
+  it("p. 表記として変換する", () => {
+    expect(parseQuery("SOX9 E75K")).toMatchObject({
+      kind: "protein",
+      target: { type: "gene", symbol: "SOX9" },
+      aa1: "E",
+      pos1: 75,
+      altAA: "K",
+    });
+  });
+
+  it.each([
+    ["exon 14 splice site (2888-14_2888-4del11)", "遺伝子名 c.2888-14_2888-4del11"],
+    ["(2888-14_2888-4del11)", "遺伝子名 c.2888-14_2888-4del11"],
+    ["2888-14_2888-4del11", "遺伝子名 c.2888-14_2888-4del11"],
+    ["E75K", "遺伝子名 p.E75K"],
+  ])("遺伝子名がなければ、付けるよう案内する: %s", (input, hint) => {
+    expect(() => parseQuery(input)).toThrow(/遺伝子名がないため変換できません/);
+    expect(() => parseQuery(input)).toThrow(hint);
   });
 });
 

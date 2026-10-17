@@ -446,7 +446,11 @@ function FormatGuide() {
     { no: "1", title: "ゲノム位置", ex: ["hg38, chr1:195507262", "hg19 chr7:55259515 T>G", "NC_000004.12:g.55113391C>T", "NC_012920.1:m.3243A>G"] },
     { no: "2", title: "スプライシング型指定の c. 表記", ex: ["NM_002253.2:c.889G>A", "NM_002253.2, c.889G>A", "NM_000546.6:c.375+1G>A"] },
     { no: "3", title: "スプライシング型指定の p. 表記", ex: ["NP_443086.1:p.Asp509Glyfs", "NP_004976.2:p.G12D"] },
-    { no: "4", title: "スプライシング型不明（遺伝子名）", ex: ["KDR:c.889G>A", "EGFR p.Leu858Arg"] },
+    {
+      no: "4",
+      title: "スプライシング型不明（遺伝子名）",
+      ex: ["KDR:c.889G>A", "EGFR p.Leu858Arg", "SOX9 E75K", "MET exon 14 splice site (2888-14_2888-4del11)"],
+    },
   ];
   return (
     <Card>

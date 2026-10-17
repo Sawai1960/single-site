@@ -105,7 +105,35 @@ function parseProtein(rest: string, target: QueryTarget): ParsedQuery {
   return { kind: "protein", target, aa1, pos1, aa2, pos2, change, altAA, frameshift };
 }
 
+const BARE_CDNA_RE = new RegExp(String.raw`^(${CPOS_RE}(?:_${CPOS_RE})?)((?:del|dup|ins|inv)[A-Za-z0-9]*|[ACGT]>[ACGT])$`, "i");
+const AA = String.raw`(?:[A-Z][a-z]{2}|[A-Z*])`;
+const BARE_PROTEIN_RE = new RegExp(
+  String.raw`^${AA}\d+(?:_${AA}\d+)?(?:${AA}(?:fs(?:\*|Ter)?\d*)?|fs(?:\*|Ter)?\d*|delins[A-Za-z*]+|del|dup|ins[A-Za-z*]+|=)$`,
+);
+const NOT_GENE = /^(exon|intron|splice|site|c|p)$/i;
+
+/**
+ * FoundationOne-style shorthand without "c." / "p.": "MET exon 14 splice site (2888-14_2888-4del11)" →
+ * "MET c.2888-14_2888-4del11", "SOX9 E75K" → "SOX9 p.E75K". Undefined when the input is not of that form.
+ */
+export function expandShorthand(raw: string): string | undefined {
+  const s = normalizeInput(raw);
+  if (/\b[cpgm]\s*\./i.test(s)) return undefined;
+  const paren = s.match(/\(([^()]+)\)\s*$/);
+  const tokens = (paren ? s.slice(0, paren.index) : s).trim().split(" ").filter(Boolean);
+  const variant = paren ? paren[1].replace(/\s/g, "") : tokens.pop();
+  const type = !variant ? undefined : BARE_CDNA_RE.test(variant) ? "c" : BARE_PROTEIN_RE.test(variant) ? "p" : undefined;
+  if (!type) return undefined;
+  const gene = tokens[0];
+  if (!gene || NOT_GENE.test(gene) || /^\d/.test(gene)) {
+    throw new ParseError(`遺伝子名がないため変換できません。報告書の遺伝子名を先頭に付けて「遺伝子名 ${type}.${variant}」の形で入力してください`);
+  }
+  return `${gene} ${type}.${variant}`;
+}
+
 export function parseQuery(raw: string): ParsedQuery {
+  const expanded = expandShorthand(raw);
+  if (expanded) return parseQuery(expanded);
   const s = normalizeInput(raw);
   if (!s) throw new ParseError("入力が空です");
 

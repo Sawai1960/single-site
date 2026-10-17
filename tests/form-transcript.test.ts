@@ -19,6 +19,7 @@ const entry = (gene: string, transcript: string, pos: number): PlannedEntry => (
   input: gene,
   gene,
   pos,
+  point: { chrom: "", pos },
   text: "",
   review: [],
   notes: [],

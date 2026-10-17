@@ -3,7 +3,7 @@ import { chromToNC } from "./chrom";
 import { locusText } from "./format";
 import { HOMOLOGOUS_GENES } from "./kazusa";
 import { cdsLengthAA, cPosToGenome, cToTx, formatCPos, genomeToC, MappingError, txToC } from "./mapping";
-import { ParseError, normalizeInput, parseCPos, parseQuery } from "./parse";
+import { ParseError, expandShorthand, normalizeInput, parseCPos, parseQuery } from "./parse";
 import {
   accBase,
   accVersion,
@@ -902,6 +902,17 @@ export async function convertOne(raw: string): Promise<ConversionResult> {
   const notes: string[] = [];
   let format: FormatNo | undefined;
   try {
+    const expanded = expandShorthand(input);
+    if (expanded) {
+      const type = expanded.includes(" p.") ? "p." : "c.";
+      notes.push(
+        `「${type}」が省かれた表記として、${expanded} と読み取りました${
+          /\sp\.[ACGT]\d+[ACGT]$/.test(expanded)
+            ? "。A・C・G・T は塩基の記号とも読めます。塩基の置換のつもりなら c. 表記（例: 遺伝子名 c.123A>G）で入力してください"
+            : ""
+        }`,
+      );
+    }
     const q = parseQuery(input);
     const idx = await getIndex();
     let candidates: ResultCandidate[];

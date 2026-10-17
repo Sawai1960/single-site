@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { candidateChecks, SOURCES, type ResultVerification, type VerificationSummary } from "@/components/verification";
 import { locusText, ninePad } from "@/lib/variant/format";
 import { MODE_LABEL, type KazusaMode } from "@/lib/variant/kazusa";
-import { planEntries, type EntryPlan, type PlannedEntry } from "@/lib/variant/request-form";
+import { planEntries, pointNote, requestPoint, spanText, type EntryPlan, type PlannedEntry } from "@/lib/variant/request-form";
 import type { ConversionResult, ResultCandidate } from "@/lib/variant/types";
 
 /** What was written into Kazusa request forms, for the record. */
@@ -248,6 +248,7 @@ function RecordSheet({
             const entry = plan.entries.find((e) => e.index === i);
             const skip = plan.skipped.find((s) => s.index === i);
             const top = r.candidates[0];
+            const point = entry?.point ?? (top ? requestPoint(top) : undefined);
             return (
               <tr key={i} className="break-inside-avoid">
                 <td className={td}>{i + 1}</td>
@@ -255,11 +256,13 @@ function RecordSheet({
                 <td className={`${td} font-semibold`}>{entry?.gene ?? top?.gene ?? "—"}</td>
                 <td className={td}>
                   <span className="font-mono font-semibold break-all">
-                    {entry ? (mode === "sanger" ? entry.text : ninePad(entry.pos)) : top ? `${top.chrom}:${top.start}` : "—"}
+                    {entry ? (mode === "sanger" ? entry.text : ninePad(entry.pos)) : point ? `${point.chrom}:${point.pos}` : "—"}
                   </span>
+                  {point?.span && <span className="block font-mono">{spanText(point)}</span>}
                   {(r.status === "error" ? r.message : skip?.reason) && (
                     <span className="block">{r.status === "error" ? r.message : skip?.reason}</span>
                   )}
+                  {!entry && point && pointNote(point) && <span className="block">{pointNote(point)}</span>}
                 </td>
                 <td className={`${td} whitespace-nowrap`}>{STATUS_LABEL[statuses[i]]}</td>
                 <td className={`${td} whitespace-nowrap`}>{SUMMARY_LABEL[summaries[i]]}</td>

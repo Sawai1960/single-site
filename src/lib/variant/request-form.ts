@@ -236,10 +236,39 @@ export interface PlannedEntry extends FormEntry {
   index: number;
   /** NM_ the position was computed on */
   transcript: string;
+  point: RequestPoint;
   /** neutral remarks that need no action */
   info?: string[];
   /** must be settled with Kazusa before sending */
   alerts?: string[];
+}
+
+export interface RequestPoint {
+  chrom: string;
+  /** the single base to ask for */
+  pos: number;
+  /** set when the variant spans more than one base; protein: codon range from p. input */
+  span?: { start: number; end: number; codon: boolean; protein: boolean };
+}
+
+/** The single position used for a request: the middle base of a codon from p. input, otherwise the first base. */
+export function requestPoint(c: ResultCandidate): RequestPoint {
+  if (c.end === c.start) return { chrom: c.chrom, pos: c.start };
+  const protein = !c.hgvsC || c.hgvsC.includes("（");
+  const codon = protein && c.end - c.start === 2;
+  return { chrom: c.chrom, pos: codon ? c.start + 1 : c.start, span: { start: c.start, end: c.end, codon, protein } };
+}
+
+export function spanText(p: RequestPoint): string {
+  if (!p.span) return "";
+  return `${p.span.codon ? "コドン 3 塩基" : "範囲"}: ${p.chrom}:${p.span.start}-${p.span.end}`;
+}
+
+/** Why a position not written into the form is the one shown, for p. input. */
+export function pointNote(p: RequestPoint): string {
+  if (!p.span?.protein) return "";
+  const at = `${p.chrom}:${p.span.start}-${p.span.end}`;
+  return `${p.span.codon ? `p. 表記の入力のため、コドン 3 塩基（${at}）の中央` : `p. 表記の範囲（${at}）の先頭`}を示しています。1 塩基を指定するには、c. 表記がわかればそちらで入力してください`;
 }
 
 export interface EntryPlan {
@@ -291,14 +320,14 @@ export function planEntries(
     if (review[i]?.unverified) flags.push("外部照合が済んでいない");
     const notes: string[] = [];
     let text = "";
-    let pos = c.start;
+    const point = requestPoint(c);
+    const pos = point.pos;
     if (mode === "sanger") {
       const line = sangerLine(c);
       if (!line) return skip("依頼書に書く内容を作れないため記入しません");
       text = line.text;
       if (line.missing.length) flags.push(`${line.missing.join("・")}を手で追記`);
-    } else if (c.end - c.start === 2 && (!c.hgvsC || c.hgvsC.includes("（"))) {
-      pos = c.start + 1;
+    } else if (point.span?.codon) {
       notes.push(
         `p. 表記の入力のため、コドン 3 塩基（${c.chrom}:${c.start}-${c.end}）の中央を記入しました。報告範囲（前後 2 塩基）にコドン全体が入りますが、c. 表記がわかればそちらで入力してください`,
       );
@@ -307,7 +336,7 @@ export function planEntries(
     }
     const dup = plan.entries.find((e) => (mode === "sanger" ? e.text === text : e.gene === c.gene && e.pos === pos));
     if (dup) return skip(`「${dup.input}」と同じ位置のため、重ねて記入しません`);
-    plan.entries.push({ input: r.input, gene: c.gene, pos, text, review: flags, notes, index: i, transcript: c.transcript });
+    plan.entries.push({ input: r.input, gene: c.gene, pos, text, review: flags, notes, index: i, transcript: c.transcript, point });
   });
   return plan;
 }
