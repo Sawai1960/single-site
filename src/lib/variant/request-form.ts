@@ -271,6 +271,11 @@ export function pointNote(p: RequestPoint): string {
   return `${p.span.codon ? `p. 表記の入力のため、コドン 3 塩基（${at}）の中央` : `p. 表記の範囲（${at}）の先頭`}を示しています。1 塩基を指定するには、c. 表記がわかればそちらで入力してください`;
 }
 
+/** The warning that a p. input may use mature-protein numbering, if the result has one. */
+export function numberingNote(c: ResultCandidate | undefined): string {
+  return c?.warnings.find((w) => w.includes("成熟型タンパク質の番号（")) ?? "";
+}
+
 export interface EntryPlan {
   entries: PlannedEntry[];
   skipped: { input: string; reason: string; index: number }[];

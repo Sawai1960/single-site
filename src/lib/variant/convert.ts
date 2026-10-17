@@ -933,13 +933,76 @@ async function convertGenomic(
   });
 }
 
+/** Legacy cDNA numberings still seen without "c.": legacy number − offset = c. number. */
+const LEGACY_CDNA: Record<string, { name: string; offset: number }> = {
+  BRCA1: { name: "BIC 表記", offset: 119 },
+  BRCA2: { name: "BIC 表記", offset: 228 },
+  CFTR: { name: "旧来の CFTR 表記", offset: 132 },
+};
+
+/** "6174delT" read as legacy numbering → "5946delT"; undefined when the positions would fall before c.1. */
+function fromLegacyNumber(variant: string, offset: number): string | undefined {
+  const m = variant.match(/^(\d+)([+-]\d+)?(?:_(\d+)([+-]\d+)?)?(\D.*)$/);
+  if (!m) return undefined;
+  const a = Number(m[1]) - offset;
+  const b = m[3] ? Number(m[3]) - offset : undefined;
+  if (a < 1 || (b !== undefined && b < 1)) return undefined;
+  return `${a}${m[2] ?? ""}${b !== undefined ? `_${b}${m[4] ?? ""}` : ""}${m[5]}`;
+}
+
+/** Whether a conversion is consistent with the reference: bases match and intronic offsets sit on exon edges. */
+function referenceFit(r: ConversionResult): "yes" | "no" | "unknown" {
+  if (r.status === "error") return "no";
+  const onEdge = r.candidates.filter((c) => !c.warnings.some((w) => w.includes("エクソン境界ではありません")));
+  if (!onEdge.length) return "no";
+  const checked = onEdge.filter((c) => c.refCheck);
+  if (!checked.length) return "unknown";
+  return checked.some((c) => c.refCheck!.ok) ? "yes" : "no";
+}
+
+/**
+ * A bare cDNA number for a gene with a legacy numbering is converted both ways. Returns the result to show
+ * when the legacy reading matches or cannot be ruled out; undefined to convert it as c. numbering.
+ */
+async function checkLegacyCdna(input: string, expanded: string, notes: string[]): Promise<ConversionResult | undefined> {
+  const gene = expanded.split(" ")[0].toUpperCase();
+  const cv = expanded.split(" ")[1];
+  const legacy = LEGACY_CDNA[gene];
+  const variant = cv.slice(2);
+  const shifted = legacy && fromLegacyNumber(variant, legacy.offset);
+  if (!legacy || !shifted) return undefined;
+  const [current, old] = await Promise.all([convertOne(expanded), convertOne(`${gene} c.${shifted}`)]);
+  const cur = referenceFit(current);
+  const leg = referenceFit(old);
+  if (leg === "no" || (cur === "yes" && leg === "unknown")) {
+    notes.push(
+      cur === "no"
+        ? `${gene} には旧来の記載方法（${legacy.name}）がありますが、旧来の番号とみなしても一致しませんでした。現在の記載方法（c. 表記）として変換した結果を示します`
+        : `${gene} には旧来の記載方法（${legacy.name}）がありますが、旧来の番号とみなすと${leg === "no" ? "一致しない" : "照合できない"}ため、現在の記載方法（c. 表記）と判断しました`,
+    );
+    return undefined;
+  }
+  const message =
+    cur === "no" && leg === "yes"
+      ? `旧来の記載方法（${legacy.name}）のようです。${gene} の${legacy.name}は、現在の c. 表記より番号が ${legacy.offset} 大きく、旧来の番号とみなすと一致します（現在の番号では一致しません）。入力した番号が古い報告書や文献から写したものでないか、ご確認ください。そのうえで、現在の記載方法に従った c. 表記「${gene} c.${shifted}」で入力しなおしてください`
+      : `${gene} には旧来の記載方法（${legacy.name}。現在の c. 表記より番号が ${legacy.offset} 大きい）があります。この番号には c. が付いていないため、旧来の記載なのか、現在の記載方法（c. で始まる表記）なのか分かりません。${
+          cur === "yes" && leg === "yes" ? "どちらとみなしても塩基が一致するため" : "入力に塩基の情報がなく照合できないため"
+        }、番号だけでは決められません。現在の記載なら「${gene} c.${variant}」、旧来の記載なら「${gene} c.${shifted}」で入力してください。報告書に p. 表記（アミノ酸の変化）が併記されていれば、アミノ酸の番号は旧来の記載でも現在と同じなので、そちらで入力すると番号のずれの心配がありません`;
+  return { input, format: current.format, formatLabel: current.formatLabel, status: "error", message, candidates: [], notes: [] };
+}
+
 export async function convertOne(raw: string): Promise<ConversionResult> {
   const input = normalizeInput(raw);
   const notes: string[] = [];
   let format: FormatNo | undefined;
   try {
     const expanded = expandShorthand(input);
-    if (expanded) {
+    if (expanded?.includes(" c.")) {
+      const legacyNotes: string[] = [];
+      const stop = await checkLegacyCdna(input, expanded, legacyNotes);
+      if (stop) return stop;
+      notes.push(`「c.」が省かれた表記として、${expanded} と読み取りました`, ...legacyNotes);
+    } else if (expanded) {
       notes.push(
         `「p.」が省かれた表記として、${expanded} と読み取りました${
           /\sp\.[ACGT]\d+[ACGT]$/.test(expanded)

@@ -185,9 +185,7 @@ export function Converter({ version }: { version: string }) {
         <Card>
           <CardHeader>
             <CardTitle>変異の位置情報を入力</CardTitle>
-            <CardDescription>
-              1 行に 1 件ずつ、Enter で改行して入力してください。複数行をまとめて変換できます（最大 {MAX_LINES} 行）。枠内の薄い文字は入力例で、書き始めると消えます。
-            </CardDescription>
+            <CardDescription>検査の区分を選び、変異を入力して変換します。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <fieldset className="space-y-2">
@@ -225,7 +223,7 @@ export function Converter({ version }: { version: string }) {
               </div>
               <details className="rounded-lg border bg-muted/30 px-3 py-2 text-xs">
                 <summary className="cursor-pointer font-medium select-none">
-                  がん関連遺伝子のシングルサイト解析の対象 60 遺伝子（一覧を表示）
+                  がん関連遺伝子のシングルサイト解析の対象 60 遺伝子と区分の根拠（クリックで表示）
                 </summary>
                 <p className="mt-2 font-mono leading-relaxed break-words">
                   {[...CANCER60_GENES].sort().join("、")}
@@ -233,12 +231,17 @@ export function Converter({ version }: { version: string }) {
                 <p className="mt-1 text-muted-foreground">
                   これ以外の遺伝子は、がんに関連する遺伝子でも「それ以外（Sanger 単一エクソン）」の依頼になります。選んだ区分と遺伝子が合わない場合は、変換結果に注意が出ます。
                 </p>
+                <p className="mt-1 text-muted-foreground">
+                  区分と注意の表示は、公開されているかずさ遺伝子検査室の検査案内書（がん関連遺伝子のシングルサイト解析 K110-40 Ver 8、ヒト遺伝子単一エクソン受託解析 K110-6 Ver 9）をもとに作成したものです。本ツールはかずさ遺伝子検査室が公式に承認したツールではありません。依頼の際は最新の検査案内書・依頼書をご確認ください。
+                </p>
               </details>
-              <p className="text-xs text-muted-foreground">
-                区分と注意の表示は、公開されているかずさ遺伝子検査室の検査案内書（がん関連遺伝子のシングルサイト解析 K110-40 Ver 8、ヒト遺伝子単一エクソン受託解析 K110-6 Ver 9）をもとに作成したものです。本ツールはかずさ遺伝子検査室が公式に承認したツールではありません。依頼の際は最新の検査案内書・依頼書をご確認ください。
-              </p>
             </fieldset>
-            <div className="pt-1 text-sm font-medium">② 変異を入力してください</div>
+            <div className="space-y-1 pt-1">
+              <div className="text-sm font-medium">② 変異を入力してください</div>
+              <p className="text-xs text-muted-foreground">
+                1 行に 1 件ずつ、Enter で改行して入力してください。複数行をまとめて変換できます（最大 {MAX_LINES} 行）。枠内の薄い文字は入力例で、書き始めると消えます。
+              </p>
+            </div>
             <Textarea
               ref={textarea}
               value={text}
@@ -518,7 +521,7 @@ const MODE_CAUTIONS: Record<KazusaMode, { source: string; items: string[] }> = {
 
 const DISCLAIMER = [
   "本ツールは、HGVS 表記で記載されたバリアントの GRCh38 ゲノム座標を求める作業を支援するためのものであり、疾患の診断・治療・予防を目的としたものではありません。",
-  "本ツールは、臨床遺伝専門医による利用を想定しています。認定遺伝カウンセラー等は座標の確認に使えますが、診断・治療の判断は臨床遺伝専門医が行ってください。出力結果は必ず UCSC Genome Browser 等で確認のうえご使用ください。検査依頼への使用を含め、最終的な判断と責任は利用者が担うものとします。",
+  "本ツールは、臨床遺伝専門医・認定遺伝カウンセラーなど、遺伝学的検査の依頼に携わる方の利用を想定しています。出力結果は必ず UCSC Genome Browser 等で確認のうえご使用ください。検査依頼への使用を含め、最終的な判断と責任は利用者が担うものとします。",
   "本ツールは UCSC Genome Browser、NCBI、Ensembl 等の公開データを使用しています。作成者は、出力結果の正確性・完全性・最新性を保証しません。",
   "本ツールは、かずさ遺伝子検査室（公益財団法人かずさ DNA 研究所）とは関係ありません。同検査室の検査案内書の内容は作成時点の版（K110-40 Ver 8、K110-6 Ver 9）に基づいており、改訂後の内容は反映されていない場合があります。本ツールの結果について、同検査室へのお問い合わせはお控えください。",
   "作成者は、本ツールの使用または使用できなかったことによって生じたいかなる損害についても、責任を負いません。",

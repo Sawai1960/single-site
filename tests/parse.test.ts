@@ -130,6 +130,12 @@ describe("「c.」「p.」が省かれた表記（FoundationOne の報告書な�
     ["TP53 R175H (VAF 45%)", "TP53 p.R175H"],
     ["TP53 R175H 45.2%", "TP53 p.R175H"],
     ["KMT2D (MLL2) P2354L", "KMT2D p.P2354L"],
+    ["TERT promoter -124C>T", "TERT c.-124C>T"],
+    ["MET exon 14 splice site (2888-14_2888-4del11)", "MET c.2888-14_2888-4del11"],
+    ["MET 2888-14_2888-4del11", "MET c.2888-14_2888-4del11"],
+    ["MET splice site 3028+1G>T", "MET c.3028+1G>T"],
+    ["MET splice site (3028+1G>T)", "MET c.3028+1G>T"],
+    ["BRCA2 6174delT", "BRCA2 c.6174delT"],
     ["NM_002253.2, c.889G>A", undefined],
     ["KRAS", undefined],
     ["KDR c.889G>A", undefined],
@@ -142,16 +148,14 @@ describe("「c.」「p.」が省かれた表記（FoundationOne の報告書な�
     expect(expandShorthand(input)).toBe(expected);
   });
 
-  it.each([
-    ["MET exon 14 splice site (2888-14_2888-4del11)", "「MET c.2888-14_2888-4del11」"],
-    ["MET 2888-14_2888-4del11", "「MET c.2888-14_2888-4del11」"],
-    ["MET splice site 3028+1G>T", "「MET c.3028+1G>T」"],
-    ["MET splice site (3028+1G>T)", "「MET c.3028+1G>T」"],
-    ["TERT promoter -124C>T", "「TERT c.-124C>T」"],
-    ["CFTR 621+1G>T", "「CFTR c.621+1G>T」"],
-  ])("c. のない番号は読み替えず、c. を付けた形を案内する: %s", (input, hint) => {
-    expect(() => parseQuery(input)).toThrow(/c\. のない番号/);
-    expect(() => parseQuery(input)).toThrow(hint);
+  it("c. 表記として変換する", () => {
+    expect(parseQuery("MET exon 14 splice site (2888-14_2888-4del11)")).toMatchObject({
+      kind: "cdna",
+      target: { type: "gene", symbol: "MET" },
+      start: { base: 2888, offset: -14 },
+      end: { base: 2888, offset: -4 },
+      varType: "deletion",
+    });
   });
 
   it("p. 表記として変換する", () => {
@@ -173,13 +177,6 @@ describe("「c.」「p.」が省かれた表記（FoundationOne の報告書な�
     expect(() => parseQuery(input)).toThrow(/遺伝子名がないため変換できません/);
     expect(() => parseQuery(input)).toThrow(hint);
   });
-
-  it.each(["BRCA2 6174delT", "BRCA1 185delAG", "BRCA1 5382insC", "brca2 splice site 7976-1G>A"])(
-    "BRCA1/2 の c. のない番号は BIC 旧表記の可能性があるので読み替えない: %s",
-    (input) => {
-      expect(() => parseQuery(input)).toThrow(/BIC 旧表記/);
-    },
-  );
 
   it("BRCA1/2 でも p. の省略は読む", () => {
     expect(expandShorthand("BRCA2 S1982fs*22")).toBe("BRCA2 p.S1982fs*22");

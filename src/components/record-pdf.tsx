@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { candidateChecks, SOURCES, type ResultVerification, type VerificationSummary } from "@/components/verification";
 import { locusText, ninePad } from "@/lib/variant/format";
 import { MODE_LABEL, type KazusaMode } from "@/lib/variant/kazusa";
-import { planEntries, pointNote, requestPoint, spanText, type EntryPlan, type PlannedEntry } from "@/lib/variant/request-form";
+import { numberingNote, planEntries, pointNote, requestPoint, spanText, type EntryPlan, type PlannedEntry } from "@/lib/variant/request-form";
 import type { ConversionResult, ResultCandidate } from "@/lib/variant/types";
 
 /** What was written into Kazusa request forms, for the record. */
@@ -267,6 +267,7 @@ function RecordSheet({
                         : "—"}
                   </span>
                   {point?.span && <span className="block font-mono">{spanText(point)}</span>}
+                  {numberingNote(top) && <span className="block">{numberingNote(top)}</span>}
                   {(r.status === "error" ? r.message : skip?.reason) && (
                     <span className="block">{r.status === "error" ? r.message : skip?.reason}</span>
                   )}

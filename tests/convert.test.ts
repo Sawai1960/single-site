@@ -150,6 +150,51 @@ describe("形式4: スプライシング型不明", () => {
   });
 });
 
+describe("c. のない番号と旧来の番号", () => {
+  it.each([
+    ["MET exon 14 splice site (2888-14_2888-4del11)", "MET c.2888-14_2888-4del11"],
+    ["BRCA1 68_69delAG", "BRCA1 c.68_69delAG"],
+  ])("旧来の番号のない遺伝子・旧来の番号では成り立たない番号は c. として変換する: %s", async (input, read) => {
+    const r = await convertOne(input);
+    expect(r.status).not.toBe("error");
+    expect(r.notes).toContain(`「c.」が省かれた表記として、${read} と読み取りました`);
+  });
+
+  it("今の番号でだけ合えば、旧来の番号では一致しないことを添えて変換する", async () => {
+    const r = await convertOne("BRCA2 5946delT");
+    expect(r.status).toBe("ok");
+    expect(r.notes.join()).toContain("旧来の番号とみなすと一致しないため、現在の記載方法（c. 表記）と判断しました");
+  });
+
+  it("旧来の番号でだけ合えば止め、現在の c. 表記を示す", async () => {
+    const r = await convertOne("CFTR 621+1G>T");
+    expect(r.status).toBe("error");
+    expect(r.message).toContain("旧来の記載方法（旧来の CFTR 表記）のようです");
+    expect(r.message).toContain("（現在の番号では一致しません）");
+    expect(r.message).toContain("現在の記載方法に従った c. 表記「CFTR c.489+1G>T」で入力しなおしてください");
+  });
+
+  it.each([
+    ["BRCA2 6174delT", "どちらとみなしても塩基が一致する", "「BRCA2 c.6174delT」", "「BRCA2 c.5946delT」"],
+    ["BRCA1 185delAG", "どちらとみなしても塩基が一致する", "「BRCA1 c.185_186delAG」", "「BRCA1 c.66_67delAG」"],
+    ["BRCA1 5382insC", "入力に塩基の情報がなく照合できない", "「BRCA1 c.5382insC」", "「BRCA1 c.5263insC」"],
+  ])("どちらの番号でも成り立てば止め、両方の形を示す: %s", async (input, reason, current, legacy) => {
+    const r = await convertOne(input);
+    expect(r.status).toBe("error");
+    expect(r.message).toContain("旧来の記載なのか、現在の記載方法（c. で始まる表記）なのか分かりません");
+    expect(r.message).toContain(reason);
+    expect(r.message).toContain(`現在の記載なら${current}`);
+    expect(r.message).toContain(`旧来の記載なら${legacy}`);
+    expect(r.message).toContain("p. 表記");
+  });
+
+  it("どちらの番号でも合わなければ、その旨を添えて c. として変換した結果を示す", async () => {
+    const r = await convertOne("brca2 splice site 7976-1G>A");
+    expect(r.status).toBe("warning");
+    expect(r.notes.join()).toContain("旧来の番号とみなしても一致しませんでした");
+  });
+});
+
 describe("成熟型タンパク質の番号", () => {
   const mane = async (input: string) => (await convertOne(input)).candidates.find((c) => c.mane === "MANE Select")!;
 
@@ -172,6 +217,17 @@ describe("成熟型タンパク質の番号", () => {
       expect(c.warnings.join()).not.toContain("成熟型タンパク質の番号");
     },
   );
+
+  it.each([
+    ["GBA1 p.N370S", "「GBA1 p.Asn409Ser」"],
+    ["HBB p.Glu7Val", "番号だけではどちらか決められません"],
+    ["GBA1 p.Asn409Ser", ""],
+  ])("確認表に出す注意（先頭の候補から）: %s", async (input, text) => {
+    const { numberingNote } = await import("../src/lib/variant/request-form");
+    const note = numberingNote((await convertOne(input)).candidates[0]);
+    if (text) expect(note).toContain(text);
+    else expect(note).toBe("");
+  });
 
   it("どちらの番号でも合うとき（HBB は 7・8 番目がともに Glu）は、決められないことを示す", async () => {
     const c = await mane("HBB p.Glu7Val");

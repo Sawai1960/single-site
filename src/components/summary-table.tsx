@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import type { VerificationSummary } from "@/components/verification";
 import { cn } from "@/lib/utils";
 import type { KazusaMode } from "@/lib/variant/kazusa";
-import { planEntries, pointNote, requestPoint, spanText } from "@/lib/variant/request-form";
+import { numberingNote, planEntries, pointNote, requestPoint, spanText } from "@/lib/variant/request-form";
 import type { ConversionResult } from "@/lib/variant/types";
 
 type ResultStatus = ConversionResult["status"];
@@ -81,6 +81,9 @@ export function SummaryTable({
                         : "—"}
                   </div>
                   {point?.span && <div className="font-mono text-xs text-muted-foreground">{spanText(point)}</div>}
+                  {numberingNote(top) && (
+                    <div className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">{numberingNote(top)}</div>
+                  )}
                   {note && (
                     <div className={cn("mt-0.5 text-xs", skip || r.status === "error" ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
                       {note}

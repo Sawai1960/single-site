@@ -126,9 +126,9 @@ function looksLikeVariant(part: string): boolean {
 }
 
 /**
- * FoundationOne-style protein shorthand without "p.": "SOX9 E75K" → "SOX9 p.E75K". Undefined when the input
- * is not of that form. Bare cDNA numbers ("MET 2888-14_2888-4del11") are rejected with the c. form to type,
- * since their numbering may be a legacy scheme offset from c. (BIC, CFTR legacy names).
+ * FoundationOne-style shorthand without "c." / "p.": "MET exon 14 splice site (2888-14_2888-4del11)" →
+ * "MET c.2888-14_2888-4del11", "SOX9 E75K" → "SOX9 p.E75K". Undefined when the input is not of that form.
+ * Genes with a legacy cDNA numbering (BIC, CFTR legacy names) are checked against it in convertOne.
  */
 export function expandShorthand(raw: string): string | undefined {
   const s = normalizeInput(stripAlleleFraction(normalizeInput(raw)));
@@ -147,15 +147,10 @@ export function expandShorthand(raw: string): string | undefined {
   if (!gene || NOT_GENE.test(gene) || /^\d/.test(gene)) {
     throw new ParseError(`遺伝子名がないため変換できません。報告書の遺伝子名を先頭に付けて「遺伝子名 ${type}.${variant}」の形で入力してください`);
   }
-  if (type === "c" && /^BRCA[12]$/i.test(gene)) {
-    throw new ParseError(
-      `BRCA1/2 で c. のない番号（${variant}）は、BIC 旧表記（例: 185delAG、6174delT）のことがあります。BIC 旧表記は c. 表記と番号がずれる（BRCA1 で約 119、BRCA2 で約 228）ため、自動では読み替えません。報告書の c. 表記で入力してください`,
-    );
-  }
-  if (type === "c") {
-    throw new ParseError(
-      `c. のない番号（${variant}）は自動では読み替えません。遺伝子によっては旧来の番号の付け方で c. 表記とずれていることがあります。報告書の番号が c. 表記であることを確かめて、「${gene} c.${variant}」の形で入力してください`,
-    );
+  const multiDel = type === "c" ? variant!.match(/^(\d+)del([ACGT]{2,})$/i) : null;
+  if (multiDel) {
+    const from = Number(multiDel[1]);
+    return `${gene} c.${from}_${from + multiDel[2].length - 1}del${multiDel[2]}`;
   }
   return `${gene} ${type}.${variant}`;
 }
