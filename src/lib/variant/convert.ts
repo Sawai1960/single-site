@@ -523,6 +523,21 @@ async function convertCdna(
   return { candidates, errors };
 }
 
+/**
+ * Genes whose variants are still widely named by mature-protein numbering (signal peptide / initiator Met
+ * removed): legacy number + offset = number counted from the initiator Met.
+ */
+const MATURE_OFFSET: Record<string, number> = {
+  GBA1: 39, // N370S = p.Asn409Ser
+  GBA: 39,
+  TTR: 20, // V30M = p.Val50Met
+  APOE: 18, // C112R = p.Cys130Arg
+  SERPINA1: 24, // E342K = p.Glu366Lys
+  HBB: 1, // Glu6Val = p.Glu7Val
+  F8: 19,
+  F9: 46,
+};
+
 async function convertProtein(
   q: ProteinQuery,
   ts: Transcript[],
@@ -530,10 +545,20 @@ async function convertProtein(
   const idx = await getIndex();
   const errors: string[] = [];
   const lastPos = q.pos2 ?? q.pos1;
-  const mapped: { t: Transcript; codon1: number[]; codon2?: number[] }[] = [];
+  const mapped: { t: Transcript; codon1: number[]; codon2?: number[]; mature?: { pos: number; codon: number[] } }[] = [];
   for (const t of ts) {
     try {
-      mapped.push({ t, ...mapProtein(q, t) });
+      const m = mapProtein(q, t);
+      const off = MATURE_OFFSET[t.gene];
+      let mature: { pos: number; codon: number[] } | undefined;
+      if (off && q.aa1 && !q.pos2) {
+        try {
+          mature = { pos: q.pos1 + off, codon: mapProtein({ ...q, pos1: q.pos1 + off }, t).codon1 };
+        } catch (e) {
+          if (!(e instanceof MappingError)) throw e;
+        }
+      }
+      mapped.push({ t, ...m, mature });
     } catch (e) {
       if (e instanceof MappingError) errors.push(`${t.acc}（${t.prot}）: ${e.message}`);
       else throw e;
@@ -544,7 +569,7 @@ async function convertProtein(
   const byChrom = new Map<string, [number, number][]>();
   for (const m of mapped) {
     const arr = byChrom.get(m.t.chrom) ?? [];
-    for (const g of [...m.codon1, ...(m.codon2 ?? [])]) arr.push([g, g]);
+    for (const g of [...m.codon1, ...(m.codon2 ?? []), ...(m.mature?.codon ?? [])]) arr.push([g, g]);
     byChrom.set(m.t.chrom, arr);
   }
   const seqs = new Map<string, SeqAccessor | null>();
@@ -558,7 +583,7 @@ async function convertProtein(
     }),
   );
 
-  const candidates = mapped.map(({ t, codon1, codon2 }) => {
+  const candidates = mapped.map(({ t, codon1, codon2, mature }) => {
     const w = transcriptWarnings(idx, t, t.cds[0] + (lastPos - 1) * 3);
     const all = [...codon1, ...(codon2 ?? [])];
     const lo = Math.min(...all);
@@ -589,6 +614,17 @@ async function convertProtein(
       }
       if (failures.length) {
         w.unshift(`${failures.join("。")}。NP 番号・バージョンやアミノ酸番号を確認してください`);
+      }
+      if (mature && q.aa1 && translateCodon(mature.codon.map(base).join("")) === q.aa1) {
+        const off = mature.pos - q.pos1;
+        const legacy = `${t.gene} は、成熟型タンパク質の番号（開始 Met から数えた番号より ${off} 小さい）で書かれることがあります。`;
+        const change = q.altAA && /^(?:[A-Z][a-z]{2}|[A-Z*])$/.test(q.change) ? aa3(q.altAA) : q.change;
+        const asMature = `${t.gene} p.${aa3(q.aa1)}${mature.pos}${change}`;
+        w.unshift(
+          observed === q.aa1
+            ? `${legacy}この入力は、開始 Met から数えた ${q.pos1} 番目（表示中の位置）でも、成熟型の番号とみなした ${mature.pos} 番目でも ${aa3(q.aa1)} が一致するため、番号だけではどちらか決められません。報告書に c. 表記があれば、そちらで入力してください`
+            : `${legacy}成熟型の番号とみなすと ${mature.pos} 番目が ${aa3(q.aa1)} で一致します。報告書が成熟型の番号なら「${asMature}」で入力し直してください`,
+        );
       }
       if (q.altAA && !q.frameshift && !q.pos2 && q.altAA !== observed) {
         snvCandidates = [];

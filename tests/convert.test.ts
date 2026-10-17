@@ -150,6 +150,36 @@ describe("形式4: スプライシング型不明", () => {
   });
 });
 
+describe("成熟型タンパク質の番号", () => {
+  const mane = async (input: string) => (await convertOne(input)).candidates.find((c) => c.mane === "MANE Select")!;
+
+  it.each([
+    ["GBA1 p.N370S", "GBA1 p.Asn409Ser"],
+    ["HBB p.Glu6Val", "HBB p.Glu7Val"],
+    ["TTR p.V30M", "TTR p.Val50Met"],
+    ["SERPINA1 p.E342K", "SERPINA1 p.Glu366Lys"],
+  ])("%s は成熟型の番号とみなすと一致することを示す", async (input, asMature) => {
+    const c = await mane(input);
+    expect(c.refCheck?.ok).toBe(false);
+    expect(c.warnings[0]).toContain(`「${asMature}」で入力し直してください`);
+  });
+
+  it.each(["GBA1 p.Asn409Ser", "TTR p.Val50Met"])(
+    "開始 Met から数えた番号の入力は、成熟型の番号では合わなければ注意しない: %s",
+    async (input) => {
+      const c = await mane(input);
+      expect(c.refCheck?.ok).toBe(true);
+      expect(c.warnings.join()).not.toContain("成熟型タンパク質の番号");
+    },
+  );
+
+  it("どちらの番号でも合うとき（HBB は 7・8 番目がともに Glu）は、決められないことを示す", async () => {
+    const c = await mane("HBB p.Glu7Val");
+    expect(c.refCheck?.ok).toBe(true);
+    expect(c.warnings[0]).toContain("番号だけではどちらか決められません");
+  });
+});
+
 describe("照合と注意表示", () => {
   it("リファレンス塩基が違う入力は要確認にする", async () => {
     const r = await convertOne("NM_002253.2:c.889C>T");

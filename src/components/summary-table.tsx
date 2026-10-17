@@ -75,7 +75,9 @@ export function SummaryTable({
                         ? entry.text
                         : String(entry.pos).padStart(9, "0")
                       : point
-                        ? <span className="text-muted-foreground">{`${point.chrom}:${point.pos}`}</span>
+                        ? <span className="text-muted-foreground">
+                            {mode === "sanger" || point.chrom === "chrM" ? `${point.chrom}:${point.pos}` : String(point.pos).padStart(9, "0")}
+                          </span>
                         : "—"}
                   </div>
                   {point?.span && <div className="font-mono text-xs text-muted-foreground">{spanText(point)}</div>}

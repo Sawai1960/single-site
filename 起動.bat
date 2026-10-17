@@ -3,11 +3,9 @@ chcp 65001 >nul
 cd /d "%~dp0"
 title シングルサイト換算ツール（院内試用）
 
-if not exist "out\index.html" (
-  echo 書き出したファイルが無いので作成します。2〜3 分かかります。
-  call npm.cmd run build
-  if errorlevel 1 goto :failed
-)
+echo 最新のコードで書き出しを作り直します。2〜3 分かかります。
+call npm.cmd run build
+if errorlevel 1 goto :failed
 
 set IP=
 for /f %%i in ('powershell -NoProfile -Command "(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway } | Select-Object -First 1).IPv4Address.IPAddress"') do set IP=%%i

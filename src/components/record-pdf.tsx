@@ -255,8 +255,16 @@ function RecordSheet({
                 <td className={`${td} font-mono break-all`}>{r.input}</td>
                 <td className={`${td} font-semibold`}>{entry?.gene ?? top?.gene ?? "—"}</td>
                 <td className={td}>
-                  <span className="font-mono font-semibold break-all">
-                    {entry ? (mode === "sanger" ? entry.text : ninePad(entry.pos)) : point ? `${point.chrom}:${point.pos}` : "—"}
+                  <span className={`font-mono font-semibold break-all ${entry ? "" : "text-gray-500"}`}>
+                    {entry
+                      ? mode === "sanger"
+                        ? entry.text
+                        : ninePad(entry.pos)
+                      : point
+                        ? mode === "sanger" || point.chrom === "chrM"
+                          ? `${point.chrom}:${point.pos}`
+                          : ninePad(point.pos)
+                        : "—"}
                   </span>
                   {point?.span && <span className="block font-mono">{spanText(point)}</span>}
                   {(r.status === "error" ? r.message : skip?.reason) && (
