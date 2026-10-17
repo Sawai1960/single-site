@@ -305,11 +305,13 @@ function RecordSheet({
                   <th rowSpan={2} className={th}>hg38 の位置</th>
                   <th rowSpan={2} className={th}>c. / p. 表記</th>
                   <th rowSpan={2} className={`${th} whitespace-nowrap`}>本ツール</th>
-                  <th colSpan={SOURCES.length} className={th}>外部データベース検証</th>
+                  <th colSpan={SOURCES.length} className={`${th} font-normal`}>
+                    外部データベース検証（照合用）
+                  </th>
                 </tr>
                 <tr>
                   {SOURCES.map((s) => (
-                    <th key={s.id} className={th}>
+                    <th key={s.id} className={`${th} font-normal`}>
                       {s.label}
                     </th>
                   ))}

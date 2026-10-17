@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckCircle2, CircleMinus, Loader2, ShieldCheck, XCircle } from "lucide-react";
+import { FaqLink } from "@/components/faq";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -145,10 +146,14 @@ function OutcomeCell({ outcome, pending, error, none }: { outcome?: CheckOutcome
       {badge}
       <div className={cn("text-xs break-words", outcome.status === "mismatch" ? "text-destructive" : "text-muted-foreground")}>
         {outcome.detail}
+        {outcome.status === "unavailable" && <FaqLink id="unavailable" />}
       </div>
     </div>
   );
 }
+
+/** The in-tool column carries the result; the external columns only check it. */
+const MAIN_COL = "border-x border-blue-200 bg-blue-50/70 dark:border-blue-900 dark:bg-blue-950/30";
 
 /** The in-tool round trip split into its c. → hg38 and hg38 → c. halves. */
 export function selfDirection(selfCheck: SelfCheck, dir: "forward" | "reverse"): boolean {
@@ -215,18 +220,18 @@ export function VerificationPanel({
           <thead className="border-b">
             <tr>
               <th rowSpan={2} className="px-3 py-1" />
-              <th rowSpan={2} className="border-l px-3 py-1 align-bottom font-medium">
+              <th rowSpan={2} className={cn(MAIN_COL, "px-3 py-1 align-bottom font-semibold text-blue-800 dark:text-blue-300")}>
                 本ツール
-                <div className="font-normal text-muted-foreground">UCSC のアライメント</div>
+                <div className="font-normal text-muted-foreground">UCSC のアライメント・変換結果の計算</div>
               </th>
-              <th colSpan={2} className="border-l px-3 pt-1 font-medium">
+              <th colSpan={2} className="px-3 pt-1 font-medium text-muted-foreground">
                 外部データベース検証
-                <span className="ml-1 font-normal text-muted-foreground">（UCSC を使わない独立した計算）</span>
+                <span className="ml-1 font-normal">（照合用・UCSC を使わない独立した計算）</span>
               </th>
             </tr>
             <tr>
               {SOURCES.map(({ id, label }) => (
-                <th key={id} className="border-l px-3 pb-1 font-medium text-muted-foreground">
+                <th key={id} className="border-l px-3 pb-1 font-normal text-muted-foreground first:border-l-0">
                   {label}
                 </th>
               ))}
@@ -239,13 +244,13 @@ export function VerificationPanel({
                   <div className="font-mono font-medium">{row.label}</div>
                   <div className="text-muted-foreground">{row.sub}</div>
                 </td>
-                <td className="min-w-0 border-l px-3 py-2">
+                <td className={cn(MAIN_COL, "min-w-0 px-3 py-2")}>
                   <SelfCell selfCheck={selfCheck} dir={row.key} />
                 </td>
-                {SOURCES.map(({ id }) => {
+                {SOURCES.map(({ id }, i) => {
                   const s = checks[id];
                   return (
-                    <td key={id} className="min-w-0 border-l px-3 py-2">
+                    <td key={id} className={cn("min-w-0 px-3 py-2", i > 0 && "border-l")}>
                       <OutcomeCell
                         pending={s?.state === "pending"}
                         error={s?.state === "error" ? s.message : undefined}

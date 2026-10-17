@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, CircleAlert, CircleCheck, Info, Loader2, OctagonX, ShieldCheck } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { FaqLink } from "@/components/faq";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -302,7 +303,12 @@ export function ResultCard({
           <Alert variant="destructive">
             <OctagonX />
             <AlertTitle>変換できませんでした</AlertTitle>
-            <AlertDescription>{result.message}</AlertDescription>
+            <AlertDescription>
+              <p>
+                {result.message}
+                <FaqLink text={result.message} />
+              </p>
+            </AlertDescription>
           </Alert>
         )}
         {external && (
@@ -320,7 +326,10 @@ export function ResultCard({
             <AlertDescription className="text-inherit">
               <ul className="list-disc space-y-0.5 pl-4">
                 {result.notes.map((n) => (
-                  <li key={n}>{n}</li>
+                  <li key={n}>
+                    {n}
+                    <FaqLink text={n} />
+                  </li>
                 ))}
               </ul>
             </AlertDescription>

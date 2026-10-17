@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { FaqSection } from "@/components/faq";
 import { RecordPdf, type DataMeta, type FormRecord } from "@/components/record-pdf";
 import { RequestFormFiller } from "@/components/request-form";
 import { effectiveStatus, ResultCard } from "@/components/result-card";
@@ -439,6 +440,7 @@ export function Converter({ version }: { version: string }) {
         </div>
       )}
 
+      <FaqSection />
       <Notes meta={meta} />
     </div>
   );

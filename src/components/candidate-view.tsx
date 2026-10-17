@@ -2,6 +2,7 @@
 
 import { CheckCircle2, ClipboardList, Copy, ExternalLink, TriangleAlert, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { FaqLink } from "@/components/faq";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -295,7 +296,10 @@ export function CandidateView({
           {kazusa.issues.map((w) => (
             <li key={w} className="flex gap-2 text-sm text-violet-800 dark:text-violet-300">
               <ClipboardList className="mt-0.5 size-4 shrink-0" />
-              <span>{w}</span>
+              <span>
+                {w}
+                <FaqLink text={w} />
+              </span>
             </li>
           ))}
         </ul>
@@ -306,7 +310,10 @@ export function CandidateView({
           {c.warnings.map((w) => (
             <li key={w} className="flex gap-2 text-sm text-amber-800 dark:text-amber-300">
               <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-              <span>{w}</span>
+              <span>
+                {w}
+                <FaqLink text={w} />
+              </span>
             </li>
           ))}
         </ul>

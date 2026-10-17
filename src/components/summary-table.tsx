@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import { FaqLink } from "@/components/faq";
 import type { VerificationSummary } from "@/components/verification";
 import { cn } from "@/lib/utils";
 import type { KazusaMode } from "@/lib/variant/kazusa";
@@ -87,6 +88,7 @@ export function SummaryTable({
                   {note && (
                     <div className={cn("mt-0.5 text-xs", skip || r.status === "error" ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
                       {note}
+                      <FaqLink text={note} />
                     </div>
                   )}
                   {!entry && point && pointNote(point) && (
