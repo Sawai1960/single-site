@@ -13,6 +13,7 @@ export function normalizeInput(raw: string): string {
     .replace(/[\u2010-\u2015\u2212\uFF0D]/g, "-")
     .replace(/[\u2192\u21D2]/g, ">")
     .replace(/\s+/g, " ")
+    .replace(/([ACGTU])\s*>\s*([ACGTU])/gi, "$1>$2")
     .trim();
 }
 
@@ -199,6 +200,11 @@ export function readReportLine(raw: string): { line: string; dropped: string[] }
     const gene = geneIdx >= 0 ? tokens[geneIdx] : undefined;
     if (!nm && !gene) return undefined;
     line = `${nm ? (gene ? `${nm.toUpperCase()}(${gene})` : nm.toUpperCase()) : gene}:${c}`;
+    const pIdx = tokens.findIndex((t, i) => i > cIdx[0] && /^p\.\S+$/i.test(t));
+    if (pIdx >= 0) {
+      used.add(pIdx);
+      line += ` (${tokens[pIdx]})`;
+    }
   } else {
     const chrIdx = tokens.findIndex((t) => REPORT_CHR.test(t));
     const alIdx = tokens.findIndex((t) => REPORT_ALLELES.test(t));
@@ -208,7 +214,8 @@ export function readReportLine(raw: string): { line: string; dropped: string[] }
     line = `${tokens[chrIdx]}${ref.length === 1 && alt.length === 1 ? `${ref.toUpperCase()}>${alt.toUpperCase()}` : ""}`;
   }
   const dropped = tokens.filter((_, i) => !used.has(i));
-  const standard = cIdx.length === 1 && used.size < 3 && dropped.every((t) => /^\(.*\)$/.test(t));
+  const pMoved = tokens.some((t, i) => used.has(i) && /^p\./i.test(t));
+  const standard = cIdx.length === 1 && !pMoved && used.size < 3 && dropped.every((t) => /^\(.*\)$/.test(t));
   return standard ? undefined : { line, dropped };
 }
 

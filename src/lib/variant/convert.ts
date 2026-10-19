@@ -1001,6 +1001,42 @@ async function checkLegacyCdna(input: string, expanded: string, notes: string[])
   return { input, format: current.format, formatLabel: current.formatLabel, status: "error", message, candidates: [], notes: [] };
 }
 
+/**
+ * The p. remark after a gene-name c. input, e.g. "PTEN c.988_989insTA (p.K330fs*15)": transcripts whose
+ * residue differs from it are marked as mismatched. "none" when no transcript has that residue.
+ */
+async function checkRemarkProtein(
+  gene: string,
+  remark: string,
+  ts: Transcript[],
+  candidates: ResultCandidate[],
+): Promise<"used" | "none" | undefined> {
+  let pq: ParsedQuery;
+  try {
+    pq = parseQuery(`${gene} ${remark.replace(/\s/g, "")}`);
+  } catch (e) {
+    if (e instanceof ParseError) return undefined;
+    throw e;
+  }
+  if (pq.kind !== "protein" || !pq.aa1) return undefined;
+  const pr = await convertProtein(pq, ts);
+  const byTx = new Map(pr.candidates.flatMap((c) => (c.refCheck ? [[c.transcript, c.refCheck] as const] : [])));
+  if (!byTx.size) return undefined;
+  if (![...byTx.values()].some((r) => r.ok)) return "none";
+  const label = `p. 表記のアミノ酸（${pq.pos1} 番目）`;
+  for (const c of candidates) {
+    const r = byTx.get(c.transcript);
+    if (!r || (c.refCheck && !c.refCheck.ok)) continue;
+    if (!r.ok) {
+      c.refCheck = { ...r, label };
+      c.warnings.unshift(`この転写産物では ${pq.pos1} 番目のアミノ酸が ${r.observed} で、入力の p. 表記（${r.expected}）と一致しません`);
+    } else if (!c.refCheck) {
+      c.refCheck = { ...r, label };
+    }
+  }
+  return "used";
+}
+
 export async function convertOne(raw: string): Promise<ConversionResult> {
   const input = normalizeInput(raw);
   const notes: string[] = [];
@@ -1075,6 +1111,15 @@ export async function convertOne(raw: string): Promise<ConversionResult> {
         notes.push(
           "古くから知られる変異では、シグナル配列を除いた成熟型タンパク質の番号で表記されていることがあります。その場合はシグナル配列を含む番号に直してから入力してください",
         );
+      }
+      if (q.kind === "cdna" && q.target.type === "gene" && remark && /^p\s*\./i.test(remark.remark)) {
+        const used = await checkRemarkProtein(q.target.symbol, remark.remark, resolved.transcripts, candidates);
+        const i = notes.findIndex((n) => n.startsWith(`「${remark.remark}」は読み飛ばし`));
+        if (used === "used" && i >= 0) {
+          notes[i] = `${remark.main} として変換し、「${remark.remark}」はアミノ酸が一致する転写産物の絞り込みに使いました`;
+        } else if (used === "none") {
+          notes.push(`「${remark.remark}」のアミノ酸は、どの転写産物とも一致しませんでした。報告書と照らし合わせてください`);
+        }
       }
       const mismatched = (c: ResultCandidate) => Boolean(c.refCheck && !c.refCheck.ok);
       candidates = [...candidates.filter((c) => !mismatched(c)), ...candidates.filter(mismatched)];

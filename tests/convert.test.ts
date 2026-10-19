@@ -149,6 +149,20 @@ describe("形式4: スプライシング型不明", () => {
     expect(firstMismatch).toBeGreaterThan(lastMatch);
   });
 
+  it("PTEN c.988_989insTA (p.K330fs*15): p. 表記のアミノ酸が一致しない転写産物は末尾に回す", async () => {
+    const r = await convertOne("PTEN c.988_989insTA (p.K330fs*15)");
+    const matched = r.candidates.filter((c) => !c.refCheck || c.refCheck.ok);
+    expect(matched.map((c) => c.transcript)).toEqual(["NM_000314.8"]);
+    expect(r.candidates.find((c) => c.transcript === "NM_001304717.5")?.refCheck?.ok).toBe(false);
+    expect(r.notes.join("\n")).toContain("絞り込みに使いました");
+  });
+
+  it("p. 表記のアミノ酸がどの転写産物とも一致しなければ、絞り込まずに知らせる", async () => {
+    const r = await convertOne("PTEN c.988_989insTA (p.R330fs*15)");
+    expect(new Set(r.candidates.map((c) => c.start)).size).toBe(2);
+    expect(r.notes.join("\n")).toContain("どの転写産物とも一致しませんでした");
+  });
+
   it("MET c.2888-14_2888-4del11: 基準位置がエクソン境界でない転写産物は候補から外す", async () => {
     const r = await convertOne("MET c.2888-14_2888-4del11");
     expect(r.candidates.map((c) => [c.transcript, c.start])).toEqual([["NM_000245.4", 116771835]]);

@@ -229,16 +229,20 @@ describe("「c.」「p.」が省かれた表記（FoundationOne の報告書な�
   });
 });
 
+it.each(["POLD1 c.2678A> G", "POLD1 c.2678A >G", "POLD1 c.2678A > G"])("> の前後のスペースは無視する: %s", (input) => {
+  expect(parseQuery(input)).toMatchObject({ kind: "cdna", refAllele: "A", altAllele: "G" });
+});
+
 describe("かずさ遺伝子検査室の報告書から写した書き方", () => {
   it.each([
-    ["BRCA2 NM_000059.4 c.6768T>A p.Cys2256Ter", "NM_000059.4(BRCA2):c.6768T>A", ["p.Cys2256Ter"]],
+    ["BRCA2 NM_000059.4 c.6768T>A p.Cys2256Ter", "NM_000059.4(BRCA2):c.6768T>A (p.Cys2256Ter)", []],
     [
       "1\tBRCA2\tNM_000059.4\theterozygous\tstop_gained\tc.6768T>A\tp.Cys2256Ter\tchr13:32341123\tT/A",
-      "NM_000059.4(BRCA2):c.6768T>A",
-      ["1", "heterozygous", "stop_gained", "p.Cys2256Ter", "chr13:32341123", "T/A"],
+      "NM_000059.4(BRCA2):c.6768T>A (p.Cys2256Ter)",
+      ["1", "heterozygous", "stop_gained", "chr13:32341123", "T/A"],
     ],
-    ["NM_000059.4:c.6768T>A p.Cys2256Ter", "NM_000059.4:c.6768T>A", ["p.Cys2256Ter"]],
-    ["BRCA2 c.6768T>A p.Cys2256Ter", "BRCA2:c.6768T>A", ["p.Cys2256Ter"]],
+    ["NM_000059.4:c.6768T>A p.Cys2256Ter", "NM_000059.4:c.6768T>A (p.Cys2256Ter)", []],
+    ["BRCA2 c.6768T>A p.Cys2256Ter", "BRCA2:c.6768T>A (p.Cys2256Ter)", []],
     ["BRCA2 exon11 c.6768T>A", "BRCA2:c.6768T>A", ["exon11"]],
     ["chr13:32341123 T/A", "chr13:32341123T>A", []],
   ])("%s", (input, line, dropped) => {
