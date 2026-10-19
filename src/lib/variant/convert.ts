@@ -3,7 +3,7 @@ import { chromToNC } from "./chrom";
 import { locusText } from "./format";
 import { HOMOLOGOUS_GENES } from "./kazusa";
 import { anchorAtExonBoundary, cdsLengthAA, cPosToGenome, cToTx, formatCPos, genomeToC, MappingError, txToC } from "./mapping";
-import { ParseError, expandShorthand, normalizeInput, parseCPos, parseQuery, splitTrailingRemark } from "./parse";
+import { ParseError, expandShorthand, normalizeInput, parseCPos, parseQuery, readReportLine, splitTrailingRemark } from "./parse";
 import {
   accBase,
   accVersion,
@@ -1006,7 +1006,14 @@ export async function convertOne(raw: string): Promise<ConversionResult> {
   const notes: string[] = [];
   let format: FormatNo | undefined;
   try {
-    const expanded = expandShorthand(input);
+    const report = readReportLine(input);
+    if (report) {
+      notes.push(
+        `報告書から写した書き方として、${report.line} と読み取りました${report.dropped.length ? `（「${report.dropped.join(" ")}」は読み飛ばしました）` : ""}`,
+      );
+    }
+    const source = report?.line ?? input;
+    const expanded = expandShorthand(source);
     if (expanded?.includes(" c.")) {
       const legacyNotes: string[] = [];
       const stop = await checkLegacyCdna(input, expanded, legacyNotes);
@@ -1021,9 +1028,9 @@ export async function convertOne(raw: string): Promise<ConversionResult> {
         }`,
       );
     }
-    const remark = splitTrailingRemark(input);
+    const remark = splitTrailingRemark(source);
     if (remark) notes.push(`「${remark.remark}」は読み飛ばし、${remark.main} として変換しました`);
-    const q = parseQuery(input);
+    const q = parseQuery(source);
     const idx = await getIndex();
     let candidates: ResultCandidate[];
     let errors: string[] = [];
@@ -1080,10 +1087,13 @@ export async function convertOne(raw: string): Promise<ConversionResult> {
           consistent.length && skipped
             ? `（リファレンスが一致しない ${skipped} 件は末尾に表示）`
             : "";
+        const what = q.kind === "protein" ? "アミノ酸" : "塩基";
         notes.unshift(
-          distinct.size > 1
-            ? `転写産物によってゲノム位置が ${distinct.size} 通りに分かれます${suffix}。お手元の情報（NM_/NP_ 番号）と照合して選んでください`
-            : `リファレンスが一致する転写産物はすべて同じゲノム位置になりました${suffix}`,
+          !consistent.length
+            ? `どの転写産物でも、入力の${what}が hg38 と一致しません。遺伝子名・番号・${what}を報告書と照らし合わせてください${distinct.size > 1 ? `（ゲノム位置の候補は ${distinct.size} か所です）` : ""}`
+            : distinct.size > 1
+              ? `転写産物によってゲノム位置が ${distinct.size} 通りに分かれます${suffix}。お手元の情報（NM_/NP_ 番号）と照合して選んでください`
+              : `リファレンスが一致する転写産物はすべて同じゲノム位置になりました${suffix}`,
         );
       }
     }

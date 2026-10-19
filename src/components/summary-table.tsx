@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { FaqLink } from "@/components/faq";
 import type { VerificationSummary } from "@/components/verification";
 import { cn } from "@/lib/utils";
-import type { KazusaMode } from "@/lib/variant/kazusa";
+import { MODE_LABEL, wrongForm, type KazusaMode } from "@/lib/variant/kazusa";
 import { numberingNote, planEntries, pointNote, requestPoint, spanText } from "@/lib/variant/request-form";
 import type { ConversionResult } from "@/lib/variant/types";
 
@@ -64,6 +64,10 @@ export function SummaryTable({
             const point = entry?.point ?? (top ? requestPoint(top) : undefined);
             const note = r.status === "error" ? r.message : (skip?.reason ?? entry?.notes[0]);
             const check = CHECK[summaries[i]];
+            const toCancer =
+              mode === "sanger" && r.status !== "error" && wrongForm(r.candidates, mode) === "cancer60"
+                ? `${entry?.gene ?? top?.gene} はがん関連遺伝子のシングルサイト解析の対象（60 遺伝子）です。検査区分を「${MODE_LABEL.cancer60}」にして入力し直してください`
+                : undefined;
             return (
               <tr key={i} className="border-t align-top">
                 <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
@@ -82,6 +86,7 @@ export function SummaryTable({
                         : "—"}
                   </div>
                   {point?.span && <div className="font-mono text-xs text-muted-foreground">{spanText(point)}</div>}
+                  {toCancer && <div className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">{toCancer}</div>}
                   {numberingNote(top) && (
                     <div className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">{numberingNote(top)}</div>
                   )}

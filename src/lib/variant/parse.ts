@@ -166,7 +166,55 @@ export function splitTrailingRemark(raw: string): { main: string; remark: string
   return { main: m[1], remark: (m[2] ?? m[3]).trim() };
 }
 
+const REPORT_CDNA = /^(?:(N[MR]_\d+(?:\.\d+)?):)?(c\.\S+)$/i;
+const REPORT_NM = /^N[MR]_\d+(?:\.\d+)?$/i;
+const REPORT_CHR = /^chr([0-9]{1,2}|X|Y|M|MT):(\d[\d,]*)$/i;
+const REPORT_ALLELES = /^([ACGT]+)\/([ACGT]+)$/i;
+const REPORT_NOT_GENE = /^(hetero|homo|hemi)(zygous)?$|^(exon|intron)\d*$/i;
+
+/**
+ * A row copied from a Kazusa-style report, e.g. "1 BRCA2 NM_000059.4 heterozygous stop_gained c.6768T>A
+ * p.Cys2256Ter chr13:32341123 T/A", "BRCA2 exon11 c.6768T>A" or "chr13:32341123 T/A", rewritten as one
+ * notation the parser reads. Undefined when the input is already in such a form.
+ */
+export function readReportLine(raw: string): { line: string; dropped: string[] } | undefined {
+  const tokens = normalizeInput(raw)
+    .split(" ")
+    .map((t) => t.replace(/^[,;]+|[,;:]+$/g, ""))
+    .filter(Boolean);
+  const cIdx = tokens.flatMap((t, i) => (REPORT_CDNA.test(t) ? [i] : []));
+  if (cIdx.length > 1) return undefined;
+  const used = new Set<number>();
+  let line: string;
+  if (cIdx.length === 1) {
+    const [, nmInline, c] = tokens[cIdx[0]].match(REPORT_CDNA)!;
+    used.add(cIdx[0]);
+    const nmIdx = nmInline ? -1 : tokens.findIndex((t) => REPORT_NM.test(t));
+    if (nmIdx >= 0) used.add(nmIdx);
+    const nm = nmInline ?? (nmIdx >= 0 ? tokens[nmIdx] : undefined);
+    const geneIdx = tokens.findIndex(
+      (t, i) => i < cIdx[0] && !used.has(i) && /^[A-Z][A-Za-z0-9-]+$/.test(t) && !REPORT_NOT_GENE.test(t),
+    );
+    if (geneIdx >= 0) used.add(geneIdx);
+    const gene = geneIdx >= 0 ? tokens[geneIdx] : undefined;
+    if (!nm && !gene) return undefined;
+    line = `${nm ? (gene ? `${nm.toUpperCase()}(${gene})` : nm.toUpperCase()) : gene}:${c}`;
+  } else {
+    const chrIdx = tokens.findIndex((t) => REPORT_CHR.test(t));
+    const alIdx = tokens.findIndex((t) => REPORT_ALLELES.test(t));
+    if (chrIdx < 0 || alIdx < 0) return undefined;
+    used.add(chrIdx).add(alIdx);
+    const [, ref, alt] = tokens[alIdx].match(REPORT_ALLELES)!;
+    line = `${tokens[chrIdx]}${ref.length === 1 && alt.length === 1 ? `${ref.toUpperCase()}>${alt.toUpperCase()}` : ""}`;
+  }
+  const dropped = tokens.filter((_, i) => !used.has(i));
+  const standard = cIdx.length === 1 && used.size < 3 && dropped.every((t) => /^\(.*\)$/.test(t));
+  return standard ? undefined : { line, dropped };
+}
+
 export function parseQuery(raw: string): ParsedQuery {
+  const report = readReportLine(raw);
+  if (report) return parseQuery(report.line);
   const expanded = expandShorthand(raw);
   if (expanded) return parseQuery(expanded);
   const remark = splitTrailingRemark(raw);

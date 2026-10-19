@@ -313,11 +313,19 @@ export function planEntries(
       }
       c = pool.find((x) => x.mane) ?? pool[0];
     } else {
-      if (new Set(pool.map((x) => requestText(x, mode))).size > 1) {
+      const site = (x: ResultCandidate) =>
+        mode === "sanger" ? `${x.gene} ${x.hgvsG || `${x.chrom}:${x.start}-${x.end}`}` : requestText(x, mode);
+      if (new Set(pool.map(site)).size > 1) {
+        if (!ok.length && r.candidates.some((x) => x.refCheck)) {
+          return skip(
+            "入力の塩基（アミノ酸）がどの転写産物とも hg38 と一致しないため記入しません。遺伝子名・番号・塩基を報告書と照らし合わせてください",
+          );
+        }
         return skip("候補が複数あり、依頼書に書く位置が 1 つに決まらないため記入しません。NM 番号付きの c. 表記で入力し直してください");
       }
-      c = pool[0];
+      c = mode === "sanger" ? (pool.find((x) => x.mane) ?? pool[0]) : pool[0];
     }
+    const sameSiteTranscripts = new Set(pool.map((x) => x.transcript)).size;
 
     const flags: string[] = [];
     if (review[i]?.mismatch) flags.push("外部データベースと不一致");
@@ -332,6 +340,11 @@ export function planEntries(
       if (!line) return skip("依頼書に書く内容を作れないため記入しません");
       text = line.text;
       if (line.missing.length) flags.push(`${line.missing.join("・")}を手で追記`);
+      if (r.format !== 1 && sameSiteTranscripts > 1) {
+        notes.push(
+          `同じ位置になる転写産物が ${sameSiteTranscripts} 件あるため、${c.mane ? "MANE Select の " : ""}${c.transcript} で記入しました。NM 番号と c. 表記はお手元の報告書と照合してください`,
+        );
+      }
     } else if (point.span?.codon) {
       notes.push(
         `p. 表記の入力のため、コドン 3 塩基（${c.chrom}:${c.start}-${c.end}）の中央を記入しました。報告範囲（前後 2 塩基）にコドン全体が入りますが、c. 表記がわかればそちらで入力してください`,

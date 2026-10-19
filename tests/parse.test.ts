@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ParseError, expandShorthand, parseQuery, splitTrailingRemark } from "../src/lib/variant/parse";
+import { ParseError, expandShorthand, parseQuery, readReportLine, splitTrailingRemark } from "../src/lib/variant/parse";
 
 describe("形式1: ゲノム位置", () => {
   it.each([
@@ -227,6 +227,31 @@ describe("「c.」「p.」が省かれた表記（FoundationOne の報告書な�
   ])("位置を 1 点に指定できない変化は理由を示す: %s", (input) => {
     expect(() => parseQuery(input)).toThrow(/シングルサイト検査の対象外/);
   });
+});
+
+describe("かずさ遺伝子検査室の報告書から写した書き方", () => {
+  it.each([
+    ["BRCA2 NM_000059.4 c.6768T>A p.Cys2256Ter", "NM_000059.4(BRCA2):c.6768T>A", ["p.Cys2256Ter"]],
+    [
+      "1\tBRCA2\tNM_000059.4\theterozygous\tstop_gained\tc.6768T>A\tp.Cys2256Ter\tchr13:32341123\tT/A",
+      "NM_000059.4(BRCA2):c.6768T>A",
+      ["1", "heterozygous", "stop_gained", "p.Cys2256Ter", "chr13:32341123", "T/A"],
+    ],
+    ["NM_000059.4:c.6768T>A p.Cys2256Ter", "NM_000059.4:c.6768T>A", ["p.Cys2256Ter"]],
+    ["BRCA2 c.6768T>A p.Cys2256Ter", "BRCA2:c.6768T>A", ["p.Cys2256Ter"]],
+    ["BRCA2 exon11 c.6768T>A", "BRCA2:c.6768T>A", ["exon11"]],
+    ["chr13:32341123 T/A", "chr13:32341123T>A", []],
+  ])("%s", (input, line, dropped) => {
+    expect(readReportLine(input)).toEqual({ line, dropped });
+    expect(() => parseQuery(input)).not.toThrow();
+  });
+
+  it.each(["KDR c.889G>A", "NM_002253.2, c.889G>A", "BRCA2 c.6768T>A (p.Cys2256*)", "NM_002253.2(KDR):c.889G>A", "hg38, chr1:195507262"])(
+    "これまでの書き方には使わない: %s",
+    (input) => {
+      expect(readReportLine(input)).toBeUndefined();
+    },
+  );
 });
 
 describe("入力エラー", () => {

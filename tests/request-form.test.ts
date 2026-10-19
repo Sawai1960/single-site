@@ -156,6 +156,36 @@ describe("依頼書に書く内容の決め方", () => {
     expect(p.entries[0].notes[0]).toContain("コドン");
   });
 
+  it("Sanger で NM 番号だけが違う同じ位置の候補は MANE Select で記入する", () => {
+    const g = "NC_000017.11:g.7675088C>T";
+    const p = planEntries(
+      [
+        res(
+          [
+            cand({ transcript: "NM_1.1", hgvsC: "NM_1.1:c.524G>A", hgvsG: g }),
+            cand({ transcript: "NM_000546.6", mane: "MANE Select", hgvsG: g }),
+          ],
+          { format: 4 },
+        ),
+      ],
+      "sanger",
+      [none],
+    );
+    expect(p.skipped).toEqual([]);
+    expect(p.entries[0].text).toContain("NM_000546.6");
+    expect(p.entries[0].notes.join()).toContain("同じ位置になる転写産物が 2 件");
+  });
+
+  it("どの候補もリファレンスと一致しないときは、その理由で記入しない", () => {
+    const bad = { expected: "G", observed: "A", ok: false, label: "" };
+    const p = planEntries(
+      [res([cand({ refCheck: bad }), cand({ transcript: "NM_2.1", start: 7675100, end: 7675100, refCheck: bad })], { format: 4 })],
+      "cancer60",
+      [none],
+    );
+    expect(p.skipped[0].reason).toContain("どの転写産物とも hg38 と一致しない");
+  });
+
   it("同じ位置は重ねて記入しない", () => {
     const p = planEntries([res([cand({})], { input: "a", format: 1 }), res([cand({})], { input: "b" })], "cancer60", [none, none]);
     expect(p.entries.map((e) => e.input)).toEqual(["a"]);
