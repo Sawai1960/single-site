@@ -241,6 +241,8 @@ export interface PlannedEntry extends FormEntry {
   info?: string[];
   /** must be settled with Kazusa before sending */
   alerts?: string[];
+  /** written on MANE Select after the user confirmed the report's NM_ */
+  mane?: ManeChoice;
 }
 
 export interface RequestPoint {
@@ -276,9 +278,35 @@ export function numberingNote(c: ResultCandidate | undefined): string {
   return c?.warnings.find((w) => w.includes("成熟型タンパク質の番号（")) ?? "";
 }
 
+/** A gene-name input whose transcripts split into several sites, written on MANE Select once the user confirms it. */
+export interface ManeChoice {
+  transcript: string;
+  chrom: string;
+  pos: number;
+  sites: number;
+  confirmed: boolean;
+}
+
 export interface EntryPlan {
   entries: PlannedEntry[];
-  skipped: { input: string; reason: string; index: number }[];
+  skipped: { input: string; reason: string; index: number; mane?: ManeChoice }[];
+}
+
+export interface EntryReview {
+  warning: boolean;
+  mismatch: boolean;
+  unverified?: boolean;
+  /** the user checked that the report's NM_ is the MANE Select one offered */
+  maneConfirmed?: boolean;
+}
+
+/** Notes shown with a MANE Select choice: how to compare NM_ numbers, and what to do when the report shows none. */
+export function maneChoiceNotes(m: ManeChoice): string[] {
+  return [
+    `転写産物によって位置が ${m.sites} か所に分かれます。報告書の NM 番号が ${accBase(m.transcript)} で始まっていれば、ボタンを押すと MANE Select（${m.transcript}）の位置 ${m.chrom}:${m.pos} で記入します。違う NM 番号のときは、その NM 番号を付けて入力し直してください`,
+    `末尾のバージョン番号（.3 と .4 など）だけが違うときは、報告書の NM 番号をバージョンごと付けて入力し直すと、位置が変わらないかをツールが確かめます`,
+    "報告書に NM 番号が見当たらないときは、ボタンを押さないでください。結果の表の欄外・脚注・方法の説明（解析に用いた転写産物）を探し、それでも見つからなければ検査会社に問い合わせてください。p. 表記が一致するだけでは、転写産物は決められません",
+  ];
 }
 
 /**
@@ -288,11 +316,12 @@ export interface EntryPlan {
 export function planEntries(
   results: ConversionResult[],
   mode: KazusaMode,
-  review: { warning: boolean; mismatch: boolean; unverified?: boolean }[],
+  review: EntryReview[],
 ): EntryPlan {
   const plan: EntryPlan = { entries: [], skipped: [] };
   results.forEach((r, i) => {
-    const skip = (reason: string) => plan.skipped.push({ input: r.input, reason, index: i });
+    const skip = (reason: string, mane?: ManeChoice) => plan.skipped.push({ input: r.input, reason, index: i, mane });
+    let maneChoice: ManeChoice | undefined;
     if (r.status === "error") return skip("変換できなかったため記入しません");
     const ok = r.candidates.filter((c) => !c.refCheck || c.refCheck.ok);
     let pool = (ok.length ? ok : r.candidates).filter((c) => c.chrom !== "chrM" && c.gene);
@@ -315,15 +344,29 @@ export function planEntries(
     } else {
       const site = (x: ResultCandidate) =>
         mode === "sanger" ? `${x.gene} ${x.hgvsG || `${x.chrom}:${x.start}-${x.end}`}` : requestText(x, mode);
-      if (new Set(pool.map(site)).size > 1) {
+      const sites = new Set(pool.map(site)).size;
+      const mane = pool.find((x) => x.mane);
+      if (sites > 1) {
         if (!ok.length && r.candidates.some((x) => x.refCheck)) {
           return skip(
             "入力の塩基（アミノ酸）がどの転写産物とも hg38 と一致しないため記入しません。遺伝子名・番号・塩基を報告書と照らし合わせてください",
           );
         }
-        return skip("候補が複数あり、依頼書に書く位置が 1 つに決まらないため記入しません。NM 番号付きの c. 表記で入力し直してください");
+        if (r.format !== 4 || !mane) {
+          return skip("候補が複数あり、依頼書に書く位置が 1 つに決まらないため記入しません。NM 番号付きの c. 表記で入力し直してください");
+        }
+        maneChoice = {
+          transcript: mane.transcript,
+          chrom: mane.chrom,
+          pos: requestPoint(mane).pos,
+          sites,
+          confirmed: Boolean(review[i]?.maneConfirmed),
+        };
+        if (!maneChoice.confirmed) {
+          return skip("転写産物によって位置が分かれるため、報告書の NM 番号を確認するまで記入しません", maneChoice);
+        }
       }
-      c = mode === "sanger" ? (pool.find((x) => x.mane) ?? pool[0]) : pool[0];
+      c = mode === "sanger" || maneChoice ? (mane ?? pool[0]) : pool[0];
     }
     const sameSiteTranscripts = new Set(pool.map((x) => x.transcript)).size;
 
@@ -332,6 +375,11 @@ export function planEntries(
     else if (review[i]?.warning) flags.push("要確認");
     if (review[i]?.unverified) flags.push("外部照合が済んでいない");
     const notes: string[] = [];
+    if (maneChoice) {
+      notes.push(
+        `報告書の NM 番号が ${accBase(c.transcript)} であることを確認済みとして、MANE Select（${c.transcript}）の位置で記入しました（転写産物によっては ${maneChoice.sites} か所に分かれます）`,
+      );
+    }
     let text = "";
     const point = requestPoint(c);
     const pos = point.pos;
@@ -340,7 +388,7 @@ export function planEntries(
       if (!line) return skip("依頼書に書く内容を作れないため記入しません");
       text = line.text;
       if (line.missing.length) flags.push(`${line.missing.join("・")}を手で追記`);
-      if (r.format !== 1 && sameSiteTranscripts > 1) {
+      if (!maneChoice && r.format !== 1 && sameSiteTranscripts > 1) {
         notes.push(
           `同じ位置になる転写産物が ${sameSiteTranscripts} 件あるため、${c.mane ? "MANE Select の " : ""}${c.transcript} で記入しました。NM 番号と c. 表記はお手元の報告書と照合してください`,
         );
@@ -354,7 +402,7 @@ export function planEntries(
     }
     const dup = plan.entries.find((e) => (mode === "sanger" ? e.text === text : e.gene === c.gene && e.pos === pos));
     if (dup) return skip(`「${dup.input}」と同じ位置のため、重ねて記入しません`);
-    plan.entries.push({ input: r.input, gene: c.gene, pos, text, review: flags, notes, index: i, transcript: c.transcript, point });
+    plan.entries.push({ input: r.input, gene: c.gene, pos, text, review: flags, notes, index: i, transcript: c.transcript, point, mane: maneChoice });
   });
   return plan;
 }

@@ -59,7 +59,7 @@ export function RequestFormFiller({
 }: {
   results: ConversionResult[];
   mode: KazusaMode;
-  review: { warning: boolean; mismatch: boolean; unverified: boolean }[];
+  review: { warning: boolean; mismatch: boolean; unverified: boolean; maneConfirmed: boolean }[];
   /** external checks still running */
   checking: { done: number; total: number } | null;
   /** at least one result has been cross-checked */

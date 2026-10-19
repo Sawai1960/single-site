@@ -5,7 +5,9 @@ import { FaqLink } from "@/components/faq";
 import type { VerificationSummary } from "@/components/verification";
 import { cn } from "@/lib/utils";
 import { MODE_LABEL, wrongForm, type KazusaMode } from "@/lib/variant/kazusa";
-import { numberingNote, planEntries, pointNote, requestPoint, spanText } from "@/lib/variant/request-form";
+import { Button } from "@/components/ui/button";
+import { accBase } from "@/lib/variant/refseq";
+import { maneChoiceNotes, numberingNote, planEntries, pointNote, requestPoint, spanText } from "@/lib/variant/request-form";
 import type { ConversionResult } from "@/lib/variant/types";
 
 type ResultStatus = ConversionResult["status"];
@@ -31,16 +33,24 @@ export function SummaryTable({
   mode,
   statuses,
   summaries,
+  maneConfirmed,
+  onManeConfirm,
 }: {
   results: ConversionResult[];
   mode: KazusaMode;
   statuses: ResultStatus[];
   summaries: VerificationSummary[];
+  maneConfirmed: ReadonlySet<number>;
+  onManeConfirm: (index: number, confirmed: boolean) => void;
 }) {
   const plan = planEntries(
     results,
     mode,
-    results.map((_, i) => ({ warning: statuses[i] === "warning", mismatch: summaries[i] === "mismatch" })),
+    results.map((_, i) => ({
+      warning: statuses[i] === "warning",
+      mismatch: summaries[i] === "mismatch",
+      maneConfirmed: maneConfirmed.has(i),
+    })),
   );
 
   return (
@@ -62,7 +72,8 @@ export function SummaryTable({
             const skip = plan.skipped.find((s) => s.index === i);
             const top = r.candidates[0];
             const point = entry?.point ?? (top ? requestPoint(top) : undefined);
-            const note = r.status === "error" ? r.message : (skip?.reason ?? entry?.notes[0]);
+            const maneWait = skip?.mane;
+            const note = r.status === "error" ? r.message : maneWait ? undefined : (skip?.reason ?? entry?.notes[0]);
             const check = CHECK[summaries[i]];
             const toCancer =
               mode === "sanger" && r.status !== "error" && wrongForm(r.candidates, mode) === "cancer60"
@@ -95,6 +106,25 @@ export function SummaryTable({
                       {note}
                       <FaqLink text={note} />
                     </div>
+                  )}
+                  {maneWait && (
+                    <div className="mt-1 space-y-1 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                      {maneChoiceNotes(maneWait).map((n) => (
+                        <p key={n}>{n}</p>
+                      ))}
+                      <Button size="sm" variant="outline" className="mt-1 h-auto py-1 text-xs" onClick={() => onManeConfirm(i, true)}>
+                        報告書の NM 番号は {accBase(maneWait.transcript)} です（この位置で記入する）
+                      </Button>
+                    </div>
+                  )}
+                  {entry?.mane && (
+                    <button
+                      type="button"
+                      className="mt-0.5 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                      onClick={() => onManeConfirm(i, false)}
+                    >
+                      NM 番号の確認を取り消す
+                    </button>
                   )}
                   {!entry && point && pointNote(point) && (
                     <div className="mt-0.5 text-xs text-muted-foreground">{pointNote(point)}</div>

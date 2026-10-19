@@ -73,6 +73,7 @@ export function RecordPdf({
   mode,
   statuses,
   summaries,
+  maneConfirmed,
   verification,
   formRecord,
   meta,
@@ -83,6 +84,7 @@ export function RecordPdf({
   mode: KazusaMode;
   statuses: ConversionResult["status"][];
   summaries: VerificationSummary[];
+  maneConfirmed: ReadonlySet<number>;
   verification: Record<number, ResultVerification>;
   formRecord: FormRecord | null;
   meta: DataMeta | null;
@@ -161,6 +163,7 @@ export function RecordPdf({
           mode={mode}
           statuses={statuses}
           summaries={summaries}
+          maneConfirmed={maneConfirmed}
           verification={verification}
           formRecord={formRecord}
           meta={meta}
@@ -179,6 +182,7 @@ function RecordSheet({
   mode,
   statuses,
   summaries,
+  maneConfirmed,
   verification,
   formRecord,
   meta,
@@ -190,6 +194,7 @@ function RecordSheet({
   mode: KazusaMode;
   statuses: ConversionResult["status"][];
   summaries: VerificationSummary[];
+  maneConfirmed: ReadonlySet<number>;
   verification: Record<number, ResultVerification>;
   formRecord: FormRecord | null;
   meta: DataMeta | null;
@@ -200,7 +205,11 @@ function RecordSheet({
   const plan = planEntries(
     results,
     mode,
-    results.map((_, i) => ({ warning: statuses[i] === "warning", mismatch: summaries[i] === "mismatch" })),
+    results.map((_, i) => ({
+      warning: statuses[i] === "warning",
+      mismatch: summaries[i] === "mismatch",
+      maneConfirmed: maneConfirmed.has(i),
+    })),
   );
   const th = "border border-neutral-400 bg-neutral-100 px-1.5 py-1 text-left font-semibold";
   const td = "border border-neutral-400 px-1.5 py-1 align-top";

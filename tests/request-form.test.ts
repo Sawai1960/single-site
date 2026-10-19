@@ -186,6 +186,30 @@ describe("依頼書に書く内容の決め方", () => {
     expect(p.skipped[0].reason).toContain("どの転写産物とも hg38 と一致しない");
   });
 
+  it("遺伝子名の入力で位置が分かれたら、NM 番号の確認を待ってから MANE Select で記入する", () => {
+    const split = res(
+      [
+        cand({ transcript: "NM_000546.6", mane: "MANE Select" }),
+        cand({ transcript: "NM_2.1", start: 7675100, end: 7675100 }),
+      ],
+      { format: 4 },
+    );
+    const waiting = planEntries([split], "cancer60", [none]);
+    expect(waiting.entries).toEqual([]);
+    expect(waiting.skipped[0].mane).toMatchObject({ transcript: "NM_000546.6", pos: 7675088, sites: 2, confirmed: false });
+
+    const confirmed = planEntries([split], "cancer60", [{ ...none, maneConfirmed: true }]);
+    expect(confirmed.entries[0]).toMatchObject({ pos: 7675088, transcript: "NM_000546.6" });
+    expect(confirmed.entries[0].notes[0]).toContain("確認済み");
+  });
+
+  it("NM 番号付きの入力や MANE Select のない遺伝子は、位置が分かれたら記入しない", () => {
+    const two = [cand({ transcript: "NM_1.1" }), cand({ transcript: "NM_2.1", start: 7675100, end: 7675100 })];
+    const p = planEntries([res(two, { format: 4 })], "cancer60", [{ ...none, maneConfirmed: true }]);
+    expect(p.entries).toEqual([]);
+    expect(p.skipped[0].mane).toBeUndefined();
+  });
+
   it("同じ位置は重ねて記入しない", () => {
     const p = planEntries([res([cand({})], { input: "a", format: 1 }), res([cand({})], { input: "b" })], "cancer60", [none, none]);
     expect(p.entries.map((e) => e.input)).toEqual(["a"]);

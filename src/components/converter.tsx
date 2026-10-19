@@ -63,6 +63,7 @@ export function Converter({ version }: { version: string }) {
   const [resultsKey, setResultsKey] = useState(0);
   const [verification, setVerification] = useState<Record<number, ResultVerification>>({});
   const [revealed, setRevealed] = useState(false);
+  const [maneConfirmed, setManeConfirmed] = useState<ReadonlySet<number>>(new Set());
   const runId = useRef(0);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const details = useRef<HTMLDivElement>(null);
@@ -96,6 +97,7 @@ export function Converter({ version }: { version: string }) {
       setResultsKey((k) => k + 1);
       setVerification({});
       setRevealed(false);
+      setManeConfirmed(new Set());
       list
         .map((r, i) => ({ r, i }))
         .filter(({ r }) => verifiableIndexes(r).length)
@@ -127,6 +129,16 @@ export function Converter({ version }: { version: string }) {
   function reveal() {
     setRevealed(true);
     requestAnimationFrame(() => details.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function confirmMane(i: number, confirmed: boolean) {
+    setManeConfirmed((s) => {
+      const next = new Set(s);
+      if (confirmed) next.add(i);
+      else next.delete(i);
+      return next;
+    });
+    setResultsKey((k) => k + 1);
   }
 
   function addExample(v: string) {
@@ -345,7 +357,14 @@ export function Converter({ version }: { version: string }) {
               下の表の遺伝子・NM 番号・hg38 の位置が、入力した変異と合っているか確認したら、「詳細表示」を押してください。外部データベースとの照合は、確認している間に進めています。
             </p>
           </div>
-          <SummaryTable results={results} mode={mode} statuses={statuses} summaries={summaries} />
+          <SummaryTable
+            results={results}
+            mode={mode}
+            statuses={statuses}
+            summaries={summaries}
+            maneConfirmed={maneConfirmed}
+            onManeConfirm={confirmMane}
+          />
           <div className="flex flex-wrap items-center gap-2">
             {!revealed && (
               <Button size="lg" onClick={reveal} disabled={checking > 0}>
@@ -431,6 +450,7 @@ export function Converter({ version }: { version: string }) {
                 warning: statuses[i] === "warning",
                 mismatch: summaries[i] === "mismatch",
                 unverified: summaries[i] === "unchecked" || summaries[i] === "pending",
+                maneConfirmed: maneConfirmed.has(i),
               }))}
               onRecord={setFormRecord}
             />
@@ -441,6 +461,7 @@ export function Converter({ version }: { version: string }) {
               mode={mode}
               statuses={statuses}
               summaries={summaries}
+              maneConfirmed={maneConfirmed}
               verification={verification}
               formRecord={formRecord}
               meta={meta}
