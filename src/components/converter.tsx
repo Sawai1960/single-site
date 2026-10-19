@@ -373,9 +373,10 @@ export function Converter({ version }: { version: string }) {
                 {checking > 0 ? "照合中…" : "詳細表示"}
               </Button>
             )}
-            {!revealed && checking > 0 && (
+            {!revealed && (
               <span className="text-xs text-muted-foreground">
-                {started - checking}/{started} 件完了。完了したら「詳細表示」を押してください
+                {started > 0 && `${started - checking}/${started} 件完了。`}
+                {checking > 0 ? "完了したら「詳細表示」を押してください" : "「詳細表示」を押してください"}
               </span>
             )}
             <Button variant="outline" size="lg" onClick={backToInput}>
