@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowRightLeft, ChevronDown, Download, Eraser, Info, Loader2, OctagonX, PencilLine } from "lucide-react";
+import { AccessCounter } from "@/components/access-counter";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -374,7 +375,7 @@ export function Converter({ version }: { version: string }) {
             )}
             {!revealed && checking > 0 && (
               <span className="text-xs text-muted-foreground">
-                {started - checking}/{started} 件完了
+                {started - checking}/{started} 件完了。完了したら「詳細表示」を押してください
               </span>
             )}
             <Button variant="outline" size="lg" onClick={backToInput}>
@@ -645,6 +646,7 @@ function Notes({ meta }: { meta: DataMeta | null }) {
             © 2026 Hideaki Sawai. All rights reserved.
             本ツールはどなたでも自由にご利用いただけます。ソースコードの複製・改変・再配布には作成者の許可が必要です。
           </p>
+          <AccessCounter />
         </div>
       </CardContent>
     </Card>
