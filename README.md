@@ -64,7 +64,7 @@ npm run data
 
 本ツールはサーバーを使わず、ブラウザだけで動きます。`npm run build` で `out/` に書き出したファイルを、UMIN SQUARE（<https://square.umin.ac.jp/single-site/>）の `html/` に置いて公開します。
 
-データの更新、書き出し、UMIN への送信は、次の 1 行で行えます（Windows の PowerShell では `npm.cmd`）。途中で UMIN のパスワードを入力します。
+データの更新、書き出し、UMIN への送信は、次の 1 行で行えます（Windows の PowerShell では `npm.cmd`）。UMIN のパスワードは、初回だけ入力します。送信に成功すると Windows 資格情報マネージャーに保存され、次回からは入力しなくても送れます。
 
 ```bash
 npm run publish
@@ -73,7 +73,10 @@ npm run publish
 - `npm run publish -- --skip-data`: データを取り直さずに書き出して送信します。
 - `npm run publish -- --no-upload`: 書き出しだけ行います。`npm run preview` を実行すると、<http://localhost:43128/single-site/> で UMIN と同じ住所の形で確認できます。
 - 送信先は `UMIN_USER`（既定 `single-site`）、`UMIN_HOST`（既定 `square.umin.ac.jp`）、`UMIN_DIR`（既定 `html`）で変えられます。公開する住所を変えるときは、`BASE_PATH`（既定 `/single-site`）も合わせて変えます。
-- 送信には Windows 標準の `sftp` を使います。うまくいかない場合は、WinSCP などで `out/` の中身を `html/` に送ってください。
+- 送信は `scripts/upload-umin.py`（Python の paramiko と keyring。`pip install paramiko keyring`）で行います。Windows 標準の `sftp` は、UMIN と暗号方式が合わずに失敗することがあるため使いません。Python を指定したいときは環境変数 `PYTHON` で指定します。
+- 保存したパスワードは、資格情報マネージャーの「Windows 資格情報」→「汎用資格情報」に `UMIN SFTP square.umin.ac.jp` という名前で入っています。消すときは `python scripts/upload-umin.py --forget` を実行します。保存したパスワードで接続できなかったときは、入力し直しを求められ、成功すれば上書きされます。
+- ホスト鍵は `~/.ssh/known_hosts` で照合します。記録が無いときは指紋が表示され、`yes` と答えたときだけ続きます。
+- うまくいかない場合は、WinSCP などで `out/` の中身を `html/` に送ってください。
 - 公開する住所は `https://square.umin.ac.jp/single-site/` にしてください。バーチャルホスト（`single-site.umin.jp`）や `~single-site` の住所では、画面の部品が読み込めません。
 
 半年に 1 回程度の更新で十分です。手元のデータに無い新しい版の NM_ も、NCBI の配列を使って換算できるためです。
