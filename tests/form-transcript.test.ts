@@ -5,7 +5,7 @@ import { cPosToGenome, genomeToC } from "../src/lib/variant/mapping";
 import { checkFormTranscripts, readForm, type PlannedEntry, type RequestForm } from "../src/lib/variant/request-form";
 import { ensureAll, getIndex, type RefSeqIndex } from "../src/lib/variant/refseq";
 
-const FORM = path.resolve(__dirname, "../../かずさDNA研究所仕様書/がん関連遺伝子のSingleSite解析依頼書2025v2.1.xlsx");
+const FORM = path.resolve(__dirname, "../docs/kazusa/がん関連遺伝子のSingleSite解析依頼書2025v2.1.xlsx");
 
 let idx: RefSeqIndex;
 let genes: RequestForm["genes"];

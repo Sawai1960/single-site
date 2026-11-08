@@ -101,7 +101,7 @@
 
 **依存パッケージの脆弱性は、2026-11-08 の更新のあと low 2 件・moderate 11 件が残っている。** 2026-10-14 に出ていた high は、Next.js の更新と `npm audit fix` で 0 件になった。残りは主に開発用ツール（shadcn、typescript-eslint など）の依存で、`npm audit fix --force` が要る。力ずくの更新はしていない。
 
-**フォルダーが OneDrive 配下にある。** `node_modules` の同期で重くなる。移動はしていない。
+**作業フォルダーは 2026-11-08 に OneDrive の外、`D:\claude-dev\single-site` へ移した。** `node_modules` の同期で重くなるのを避けるため。GitHub から clone し、Git に無いデータ（`data/`、`public/data/`、`validation/.cache/`）と、通知書（`UMIN\`）、かずさの依頼書・案内（`docs\kazusa\`）を写した。元の OneDrive のフォルダーは確認用に残すだけで、編集・コミットしない。消すかどうかは利用者が決める。元のリポジトリには、GitHub に無いブランチ（Origin の会話記録 `origin-sessions`・`origin/snapshots/v1`・`origin/shadow/…` と、`chore/nextjs-16.4.5`）と worktree（`C:\Users\sawai\worktrees\single-site-nextjs-16.4.5`）が残っている。新しいフォルダーには引き継いでいない。
 
 **院内の別 PC から開ける防火壁の例外は、43128 番だけ（院内アドレス 10.x から）。** 開発用の 43127 番は、2026-11-08 から 127.0.0.1 だけで待ち受けるので、この PC 以外からは開けない。2026-10-14 に、院内 Wi-Fi のスマートフォンから 43128 で表示できることを利用者が確認している。
 
@@ -161,7 +161,7 @@ npm.cmd run lint
 npm.cmd run publish -- --skip-data
 ```
 
-データも取り直すときは `--skip-data` を付けない。書き出しだけで送らないときは `--no-upload`。UMIN のパスワードは初回だけ入力し、そのあとは Windows 資格情報マネージャーから読む（`python scripts/upload-umin.py --forget` で消せる）。パスワードはリポジトリに無い。アカウント開設通知書は、このリポジトリの外、`シングルサイト換算ツール\UMIN\アカウント開設通知書.pdf` にある。中身を Git にコミットしない。
+データも取り直すときは `--skip-data` を付けない。書き出しだけで送らないときは `--no-upload`。UMIN のパスワードは初回だけ入力し、そのあとは Windows 資格情報マネージャーから読む（`python scripts/upload-umin.py --forget` で消せる）。パスワードはリポジトリに無い。アカウント開設通知書は `UMIN\アカウント開設通知書.pdf` にある（`.gitignore` で除外）。中身を Git にコミットしない。
 
 接続の要点（通知書より。パスワードは書かない）: ホスト `square.umin.ac.jp`、SFTP のポート 22、アカウント `single-site`、転送先フォルダ `html`、最初のページは `index.html`。パスワードは UMIN の都合で変更できない。環境変数 `UMIN_USER`、`UMIN_HOST`、`UMIN_DIR` で送り先を変えられる。送信が失敗したら WinSCP で `out/` の中身を `html/` に送る。2026-10-19 と 2026-11-08 に、いずれも paramiko で 1,188 ファイルを送り、公開 URL で変換と照合が動くことを確認した。
 

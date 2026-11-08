@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { filledVariantCells, fillForm, planEntries, readForm, type FormEntry } from "@/lib/variant/request-form";
 import type { ConversionResult, ResultCandidate } from "@/lib/variant/types";
 
-const FORMS = path.resolve(__dirname, "../../かずさDNA研究所仕様書");
+const FORMS = path.resolve(__dirname, "../docs/kazusa");
 const form = (name: string) => readFileSync(path.join(FORMS, name));
 const CANCER = "がん関連遺伝子のSingleSite解析依頼書2025v2.1.xlsx";
 const CANCER_RE = "がん関連遺伝子のSingleSite再解析依頼書（5つ以上の遺伝子用）2025v2.1.xlsx";

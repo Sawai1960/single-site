@@ -6,6 +6,12 @@
 @AGENTS.md
 @HANDOVER.md
 
+## 作業場所
+
+- 作業フォルダーは `D:\claude-dev\single-site`（2026-11-08 に OneDrive の外へ移した）。
+- 元の OneDrive のフォルダー（`…\OneDrive\ドキュメント\AI\AI_Cursor\シングルサイト換算ツール\hgvs-genomic-converter-1`）は確認用に残しているだけで、編集・コミットしない。消すかどうかはユーザーと相談して決める。
+- UMIN の通知書は `UMIN\`、かずさの依頼書・案内は `docs\kazusa\` にある（どちらもコミットしない）。
+
 ## コマンド（Windows / PowerShell では `npm` ではなく `npm.cmd`）
 
 - 開発サーバー: `npm.cmd run dev` → http://localhost:43127/single-site/ （127.0.0.1 のみで待ち受け）

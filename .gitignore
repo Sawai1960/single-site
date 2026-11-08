@@ -47,5 +47,11 @@ next-env.d.ts
 /data/
 /public/data/
 
+# UMIN account notice (contains SFTP credentials)
+/UMIN/
+
+# Kazusa DNA Research Institute order forms and test guides (their documents, not ours)
+/docs/kazusa/
+
 # Reference sequences cached by the validation scripts
 /validation/.cache/
