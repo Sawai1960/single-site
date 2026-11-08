@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# python (scripts/upload-umin.py)
+__pycache__/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
